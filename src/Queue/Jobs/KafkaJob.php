@@ -56,4 +56,9 @@ class KafkaJob extends Job implements JobContract
     {
         return $this->message->key;
     }
+
+    public function uuid(): string
+    {
+        return $this->message->key;
+    }
 }
