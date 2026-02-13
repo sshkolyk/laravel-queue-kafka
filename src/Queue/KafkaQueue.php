@@ -6,6 +6,7 @@ use ErrorException;
 use Exception;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\Queue;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Log;
 use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
@@ -235,11 +236,11 @@ class KafkaQueue extends Queue implements QueueContract
     {
         if (!$this->_consumer) {
             /** @var \RdKafka\TopicConf $topicConf */
-            $topicConf = $this->container->makeWith('queue.kafka.topic_conf', []);
+            $topicConf = App::makeWith('queue.kafka.topic_conf', []);
             $topicConf->set('auto.offset.reset', 'largest');
 
             /** @var \RdKafka\Conf $conf */
-            $consumerConf = $this->container->makeWith('queue.kafka.conf', []);
+            $consumerConf = App::makeWith('queue.kafka.conf', []);
             $consumerConf->set('bootstrap.servers', $this->config['bootstrap_servers']);
             if (true === $this->config['sasl_enable']) {
                 $consumerConf->set('sasl.mechanisms', 'PLAIN');
@@ -261,10 +262,16 @@ class KafkaQueue extends Queue implements QueueContract
     private function getProducer(): Producer
     {
         if (!$this->_producer) {
-            /** @var \RdKafka\Conf $consumerConf */
-            $producerConf = $this->container->makeWith('queue.kafka.conf', []);
+            /** @var \RdKafka\Conf $producerConf */
+            $producerConf = App::makeWith('queue.kafka.conf', []);
             $producerConf->set('bootstrap.servers', $this->config['bootstrap_servers']);
             $producerConf->set('metadata.broker.list', $this->config['brokers']);
+            if (true === $this->config['sasl_enable']) {
+                $producerConf->set('sasl.mechanisms', 'PLAIN');
+                $producerConf->set('sasl.username', $this->config['sasl_plain_username']);
+                $producerConf->set('sasl.password', $this->config['sasl_plain_password']);
+                $producerConf->set('ssl.ca.location', $this->config['ssl_ca_location']);
+            }
             /** @var \RdKafka\Producer $producer */
             $this->_producer = new \RdKafka\Producer($producerConf);
         }
