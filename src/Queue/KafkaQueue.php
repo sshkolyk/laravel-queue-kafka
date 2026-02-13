@@ -4,6 +4,7 @@ namespace Rapide\LaravelQueueKafka\Queue;
 
 use ErrorException;
 use Exception;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\Queue;
 use Illuminate\Support\Facades\App;
@@ -11,19 +12,25 @@ use Illuminate\Support\Facades\Log;
 use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
 use RdKafka\Consumer;
+use RdKafka\ConsumerTopic;
 use RdKafka\Producer;
+use RdKafka\ProducerTopic;
 
 class KafkaQueue extends Queue implements QueueContract
 {
     protected string $defaultQueue;
-    protected ?int $sleepOnError = null;
-    protected $config;
 
-    private ?string $correlationId = null;
-    private ?Producer $_producer = null;
-    private ?Consumer $_consumer = null;
-    private array $topics = [];
-    private array $queues = [];
+    protected ?int $sleepOnError = null;
+
+    protected ?Producer $_producer = null;
+
+    protected ?Consumer $_consumer = null;
+
+    /** @var array<ProducerTopic> */
+    protected array $_producer_topics = [];
+
+    /** @var array<ConsumerTopic> */
+    protected array $_consumer_topics = [];
 
     public function __construct(array $config)
     {
@@ -31,30 +38,32 @@ class KafkaQueue extends Queue implements QueueContract
         if (@$config['sleep_on_error']) {
             $this->sleepOnError = $config['sleep_on_error'];
         }
-        $this->config = $config;
+        $this->setConfig($config);
     }
 
     /**
      * Get the size of the queue.
      *
-     * @param null|string $queue
+     * @param  null|string  $queue
      *
-     * @return int
+     * @throws BindingResolutionException
      */
     public function size($queue = null): int
     {
-        //Since Kafka is an infinite queue we can't count the size of the queue.
-        return 1;
+        $queue = $this->getQueueName($queue);
+        $this->getConsumerTopic($queue);
+        $size = $this->getConsumer()->getOutQLen();
+        $this->stopConsumeTopic($queue);
+
+        return $size;
     }
 
     /**
      * Push a new job onto the queue.
      *
-     * @param string $job
-     * @param mixed $data
-     * @param string $queue
-     *
-     * @return bool
+     * @param  string  $job
+     * @param  mixed  $data
+     * @param  string  $queue
      */
     public function push($job, $data = '', $queue = null): bool
     {
@@ -64,23 +73,22 @@ class KafkaQueue extends Queue implements QueueContract
     /**
      * Push a raw payload onto the queue.
      *
-     * @param mixed $payload
-     * @param ?string $queue
-     * @param array $options
+     * @param  mixed  $payload
+     * @param  ?string  $queue
      *
      * @throws QueueKafkaException
-     *
-     * @return ?string
      */
     public function pushRaw($payload, $queue = null, array $options = []): ?string
     {
         try {
-            $topic = $this->getTopic($queue);
-            $pushRawCorrelationId = $this->getCorrelationId();
+            $topic = $this->getProducerTopic($queue);
+            $pushRawCorrelationId = uniqid('', true);
             $topic->produce(RD_KAFKA_PARTITION_UA, 0, $payload, $pushRawCorrelationId);
+
             return $pushRawCorrelationId;
         } catch (ErrorException $exception) {
             $this->reportConnectionError('pushRaw', $exception);
+
             return null;
         }
     }
@@ -88,138 +96,122 @@ class KafkaQueue extends Queue implements QueueContract
     /**
      * Push a new job onto the queue after a delay.
      *
-     * @param \DateTime|int $delay
-     * @param string $job
-     * @param mixed $data
-     * @param string $queue
+     * @param  \DateTime|int  $delay
+     * @param  string  $job
+     * @param  mixed  $data
+     * @param  string  $queue
      *
      * @throws QueueKafkaException
-     *
-     * @return mixed
      */
     public function later($delay, $job, $data = '', $queue = null): mixed
     {
-        //Later is not supported
+        // Later is not supported
         throw new QueueKafkaException('Later not yet implemented');
     }
 
     /**
      * Pop the next job off of the queue.
      *
-     * @param string|null $queue
+     * @param  string|null  $queue
      *
-     * @throws QueueKafkaException
-     *
-     * @return KafkaJob|null
+     * @throws QueueKafkaException|BindingResolutionException
      */
     public function pop($queue = null): ?KafkaJob
     {
         try {
             $queue = $this->getQueueName($queue);
-            if (!array_key_exists($queue, $this->queues)) {
-                $this->queues[$queue] = $this->getConsumer()->newQueue();
-                $topicConf = new \RdKafka\TopicConf();
-                $topicConf->set('auto.offset.reset', 'largest');
-
-                $this->topics[$queue] = $this->getConsumer()->newTopic($queue, $topicConf);
-                $this->topics[$queue]->consumeQueueStart(0, RD_KAFKA_OFFSET_STORED, $this->queues[$queue]);
-            }
-
-            $message = $this->queues[$queue]->consume(1000);
-
+            $topic = $this->getConsumerTopic($queue);
+            $message = $topic->consume($this->getConfig()['kafka_consumer_partition'], 1000);
             if ($message === null) {
+                $this->stopConsumeTopic($queue);
+
                 return null;
             }
 
             switch ($message->err) {
                 case RD_KAFKA_RESP_ERR_NO_ERROR:
                     return new KafkaJob(
-                        $this->container, $this, $message,
-                        $this->connectionName, $queue ?: $this->defaultQueue, $this->topics[$queue]
+                        container: $this->container,
+                        connection: $this,
+                        message: $message,
+                        connectionName: $this->connectionName,
+                        queue: $queue ?: $this->defaultQueue,
+                        topic: $topic,
                     );
                 case RD_KAFKA_RESP_ERR__PARTITION_EOF:
                 case RD_KAFKA_RESP_ERR__TIMED_OUT:
+                    $this->stopConsumeTopic($queue);
+
                     return null;
                 default:
+                    $this->stopConsumeTopic($queue);
                     throw new QueueKafkaException($message->errstr(), $message->err);
             }
         } catch (\RdKafka\Exception $exception) {
+            $this->stopConsumeTopic($queue);
             throw new QueueKafkaException('Could not pop from the queue', 0, $exception);
         }
     }
 
-    /**
-     * @param null|string $queue
-     *
-     * @return string
-     */
-    private function getQueueName(?string $queue = null): string
+    protected function getQueueName(?string $queue = null): string
     {
         return $queue ?: $this->defaultQueue;
     }
 
     /**
-     * Return a Kafka Topic based on the name
-     *
-     * @param null|string $queue
-     *
-     * @return \RdKafka\ProducerTopic
+     * Return a Kafka producer Topic based on the name
      */
-    private function getTopic(?string $queue = null): \RdKafka\ProducerTopic
+    protected function getProducerTopic(?string $queue = null): ProducerTopic
     {
-        return $this->getProducer()->newTopic($this->getQueueName($queue));
+        $queue = $this->getQueueName($queue);
+        if (! array_key_exists($queue, $this->_producer_topics)) {
+            $this->_producer_topics[$queue] = $this->getProducer()->newTopic($queue);
+        }
+
+        return $this->_producer_topics[$queue];
     }
 
     /**
-     * Sets the correlation id for a message to be published.
-     *
-     * @param string $id
+     * @throws BindingResolutionException
      */
-    public function setCorrelationId(string $id): void
+    protected function getConsumerTopic(?string $queue = null): ConsumerTopic
     {
-        $this->correlationId = $id;
+        $queue = $this->getQueueName($queue);
+        if (! array_key_exists($queue, $this->_consumer_topics)) {
+            try {
+                $this->_consumer_topics[$queue] = $this->getConsumer()->newTopic($this->getQueueName($queue));
+            } catch (BindingResolutionException $e) {
+                $this->reportConnectionError('getConsumerTopic', $e);
+                throw $e;
+            }
+            $this->_consumer_topics[$queue]->consumeStart(
+                $this->getConfig()['kafka_consumer_partition'],
+                RD_KAFKA_OFFSET_STORED
+            );
+        }
+
+        return $this->_consumer_topics[$queue];
+    }
+
+    protected function stopConsumeTopic(?string $queue = null): void
+    {
+        $queue = $this->getQueueName($queue);
+        if (array_key_exists($queue, $this->_consumer_topics)) {
+            $this->_consumer_topics[$queue]->consumeStop($this->getConfig()['kafka_consumer_partition']);
+            unset($this->_consumer_topics[$queue]);
+        }
     }
 
     /**
-     * Retrieves the correlation id, or a unique id.
-     *
-     * @return string
-     */
-    public function getCorrelationId(): string
-    {
-        return $this->correlationId ?: uniqid('', true);
-    }
-
-    /**
-     * Create a payload array from the given job and data.
-     *
-     * @param  string $job
-     * @param  ?string $queue
-     * @param  mixed $data
-     *
-     * @return array
-     */
-    protected function createPayloadArray($job, $queue = null, $data = ''): array
-    {
-        return array_merge(parent::createPayloadArray($job, $queue, $data), [
-            'id' => $this->getCorrelationId(),
-            'attempts' => 0,
-        ]);
-    }
-
-    /**
-     * @param string $action
-     * @param Exception $e
-     *
      * @throws QueueKafkaException
      */
     protected function reportConnectionError(string $action, Exception $e): void
     {
-        Log::error('Kafka error while attempting ' . $action . ': ' . $e->getMessage());
+        Log::error('Kafka error while attempting '.$action.': '.$e->getMessage());
 
         // If it's set to false, throw an error rather than waiting
-        if (!$this->sleepOnError) {
-            throw new QueueKafkaException('Error writing data to the connection with Kafka');
+        if (! $this->sleepOnError) {
+            throw new QueueKafkaException('Error Kafka connection');
         }
 
         // Sleep so that we don't flood the log file
@@ -227,51 +219,58 @@ class KafkaQueue extends Queue implements QueueContract
     }
 
     /**
-     * @return Consumer
+     * Returns Kafka Consumer
+     *
+     * @throws BindingResolutionException
      */
-    private function getConsumer(): Consumer
+    protected function getConsumer(): Consumer
     {
-        if (!$this->_consumer) {
+        if (! $this->_consumer) {
             /** @var \RdKafka\TopicConf $topicConf */
             $topicConf = App::makeWith('queue.kafka.topic_conf', []);
             $topicConf->set('auto.offset.reset', 'largest');
 
             /** @var \RdKafka\Conf $conf */
             $consumerConf = App::makeWith('queue.kafka.conf', []);
-            $consumerConf->set('bootstrap.servers', $this->config['bootstrap_servers']);
-            if (true === $this->config['sasl_enable']) {
+            $consumerConf->set('bootstrap.servers', $this->getConfig()['bootstrap_servers']);
+            if ($this->getConfig()['sasl_enable'] === true) {
                 $consumerConf->set('sasl.mechanisms', 'PLAIN');
-                $consumerConf->set('sasl.username', $this->config['sasl_plain_username']);
-                $consumerConf->set('sasl.password', $this->config['sasl_plain_password']);
-                $consumerConf->set('ssl.ca.location', $this->config['ssl_ca_location']);
+                $consumerConf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
+                $consumerConf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
+                $consumerConf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);
             }
-            $consumerConf->set('group.id', $this->config['consumer_group_id']);
-            $consumerConf->set('metadata.broker.list', $this->config['brokers']);
-            $consumerConf->set('enable.auto.commit', $this->config['auto_commit']);
+            $consumerConf->set('group.id', $this->getConfig()['consumer_group_id']);
+            $consumerConf->set('metadata.broker.list', $this->getConfig()['brokers']);
+            $consumerConf->set('enable.auto.commit', $this->getConfig()['auto_commit']);
             $consumerConf->setDefaultTopicConf($topicConf);
 
             /** @var \RdKafka\KafkaConsumer $consumer */
             $this->_consumer = $this->container->makeWith('queue.kafka.consumer', ['conf' => $consumerConf]);
         }
+
         return $this->_consumer;
     }
 
-    private function getProducer(): Producer
+    /**
+     * Returns Kafka Producer
+     */
+    protected function getProducer(): Producer
     {
-        if (!$this->_producer) {
+        if (! $this->_producer) {
             /** @var \RdKafka\Conf $producerConf */
             $producerConf = App::makeWith('queue.kafka.conf', []);
-            $producerConf->set('bootstrap.servers', $this->config['bootstrap_servers']);
-            $producerConf->set('metadata.broker.list', $this->config['brokers']);
-            if (true === $this->config['sasl_enable']) {
+            $producerConf->set('bootstrap.servers', $this->getConfig()['bootstrap_servers']);
+            $producerConf->set('metadata.broker.list', $this->getConfig()['brokers']);
+            if ($this->getConfig()['sasl_enable'] === true) {
                 $producerConf->set('sasl.mechanisms', 'PLAIN');
-                $producerConf->set('sasl.username', $this->config['sasl_plain_username']);
-                $producerConf->set('sasl.password', $this->config['sasl_plain_password']);
-                $producerConf->set('ssl.ca.location', $this->config['ssl_ca_location']);
+                $producerConf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
+                $producerConf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
+                $producerConf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);
             }
             /** @var \RdKafka\Producer $producer */
             $this->_producer = new \RdKafka\Producer($producerConf);
         }
+
         return $this->_producer;
     }
 }

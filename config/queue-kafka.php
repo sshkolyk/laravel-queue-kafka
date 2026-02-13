@@ -21,6 +21,8 @@ return [
      */
     'consumer_group_id' => env('KAFKA_CONSUMER_GROUP_ID', 'laravel_queue'),
 
+    'kafka_consumer_partition' => env('KAFKA_CONSUMER_PARTITION', 0),
+
     /*
      * Address of the Kafka broker
      */
