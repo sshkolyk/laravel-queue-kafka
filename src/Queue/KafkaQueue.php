@@ -19,20 +19,17 @@ class KafkaQueue extends Queue implements QueueContract
     protected $config;
 
     private ?string $correlationId = null;
-    private Producer $producer;
-    private Consumer $consumer;
+    private ?Producer $_producer = null;
+    private ?Consumer $_consumer = null;
     private array $topics = [];
     private array $queues = [];
 
-    public function __construct(Producer $producer, Consumer $consumer, array $config)
+    public function __construct(array $config)
     {
         $this->defaultQueue = $config['queue'];
         if (@$config['sleep_on_error']) {
             $this->sleepOnError = $config['sleep_on_error'];
         }
-
-        $this->producer = $producer;
-        $this->consumer = $consumer;
         $this->config = $config;
     }
 
@@ -122,11 +119,11 @@ class KafkaQueue extends Queue implements QueueContract
         try {
             $queue = $this->getQueueName($queue);
             if (!array_key_exists($queue, $this->queues)) {
-                $this->queues[$queue] = $this->consumer->newQueue();
+                $this->queues[$queue] = $this->getConsumer()->newQueue();
                 $topicConf = new \RdKafka\TopicConf();
                 $topicConf->set('auto.offset.reset', 'largest');
 
-                $this->topics[$queue] = $this->consumer->newTopic($queue, $topicConf);
+                $this->topics[$queue] = $this->getConsumer()->newTopic($queue, $topicConf);
                 $this->topics[$queue]->consumeQueueStart(0, RD_KAFKA_OFFSET_STORED, $this->queues[$queue]);
             }
 
@@ -172,7 +169,7 @@ class KafkaQueue extends Queue implements QueueContract
      */
     private function getTopic(?string $queue = null): \RdKafka\ProducerTopic
     {
-        return $this->producer->newTopic($this->getQueueName($queue));
+        return $this->getProducer()->newTopic($this->getQueueName($queue));
     }
 
     /**
@@ -234,8 +231,43 @@ class KafkaQueue extends Queue implements QueueContract
     /**
      * @return Consumer
      */
-    public function getConsumer(): Consumer
+    private function getConsumer(): Consumer
     {
-        return $this->consumer;
+        if (!$this->_consumer) {
+            /** @var \RdKafka\TopicConf $topicConf */
+            $topicConf = $this->container->makeWith('queue.kafka.topic_conf', []);
+            $topicConf->set('auto.offset.reset', 'largest');
+
+            /** @var \RdKafka\Conf $conf */
+            $consumerConf = $this->container->makeWith('queue.kafka.conf', []);
+            $consumerConf->set('bootstrap.servers', $this->config['bootstrap_servers']);
+            if (true === $this->config['sasl_enable']) {
+                $consumerConf->set('sasl.mechanisms', 'PLAIN');
+                $consumerConf->set('sasl.username', $this->config['sasl_plain_username']);
+                $consumerConf->set('sasl.password', $this->config['sasl_plain_password']);
+                $consumerConf->set('ssl.ca.location', $this->config['ssl_ca_location']);
+            }
+            $consumerConf->set('group.id', $this->config['consumer_group_id']);
+            $consumerConf->set('metadata.broker.list', $this->config['brokers']);
+            $consumerConf->set('enable.auto.commit', $this->config['auto_commit']);
+            $consumerConf->setDefaultTopicConf($topicConf);
+
+            /** @var \RdKafka\KafkaConsumer $consumer */
+            $this->_consumer = $this->container->makeWith('queue.kafka.consumer', ['conf' => $consumerConf]);
+        }
+        return $this->_consumer;
+    }
+
+    private function getProducer(): Producer
+    {
+        if (!$this->_producer) {
+            /** @var \RdKafka\Conf $consumerConf */
+            $producerConf = $this->container->makeWith('queue.kafka.conf', []);
+            $producerConf->set('bootstrap.servers', $this->config['bootstrap_servers']);
+            $producerConf->set('metadata.broker.list', $this->config['brokers']);
+            /** @var \RdKafka\Producer $producer */
+            $this->_producer = new \RdKafka\Producer($producerConf);
+        }
+        return $this->_producer;
     }
 }
