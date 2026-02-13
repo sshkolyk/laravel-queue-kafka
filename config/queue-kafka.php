@@ -24,7 +24,7 @@ return [
     /*
      *
      */
-    'kafka_consumer_partition' => env('KAFKA_CONSUMER_PARTITION', 0),
+    'consumer_partition' => env('KAFKA_CONSUMER_PARTITION', 0),
 
     /*
      * Producer partitioner algo

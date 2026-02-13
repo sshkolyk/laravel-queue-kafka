@@ -121,7 +121,7 @@ class KafkaQueue extends Queue implements QueueContract
         try {
             $queue = $this->getQueueName($queue);
             $topic = $this->getConsumerTopic($queue);
-            $message = $topic->consume($this->getConfig()['kafka_consumer_partition'], 1000);
+            $message = $topic->consume($this->getConfig()['consumer_partition'], 1000);
             if ($message === null) {
                 $this->stopConsumeTopic($queue);
 
@@ -185,7 +185,7 @@ class KafkaQueue extends Queue implements QueueContract
                 throw $e;
             }
             $this->_consumer_topics[$queue]->consumeStart(
-                $this->getConfig()['kafka_consumer_partition'],
+                $this->getConfig()['consumer_partition'],
                 RD_KAFKA_OFFSET_STORED
             );
         }
@@ -197,7 +197,7 @@ class KafkaQueue extends Queue implements QueueContract
     {
         $queue = $this->getQueueName($queue);
         if (array_key_exists($queue, $this->_consumer_topics)) {
-            $this->_consumer_topics[$queue]->consumeStop($this->getConfig()['kafka_consumer_partition']);
+            $this->_consumer_topics[$queue]->consumeStop($this->getConfig()['consumer_partition']);
             unset($this->_consumer_topics[$queue]);
         }
     }
