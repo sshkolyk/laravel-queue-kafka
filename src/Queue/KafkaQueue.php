@@ -6,54 +6,30 @@ use ErrorException;
 use Exception;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\Queue;
-use Log;
+use Illuminate\Support\Facades\Log;
 use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
+use RdKafka\Consumer;
+use RdKafka\Producer;
 
 class KafkaQueue extends Queue implements QueueContract
 {
-    /**
-     * @var string
-     */
-    protected $defaultQueue;
-    /**
-     * @var int
-     */
-    protected $sleepOnError;
-    /**
-     * @var array
-     */
+    protected string $defaultQueue;
+    protected ?int $sleepOnError = null;
     protected $config;
-    /**
-     * @var string
-     */
-    private $correlationId;
-    /**
-     * @var \RdKafka\Producer
-     */
-    private $producer;
-    /**
-     * @var \RdKafka\Consumer
-     */
-    private $consumer;
-    /**
-     * @var array
-     */
-    private $topics = [];
-    /**
-     * @var array
-     */
-    private $queues = [];
 
-    /**
-     * @param \RdKafka\Producer $producer
-     * @param \RdKafka\KafkaConsumer $consumer
-     * @param array $config
-     */
-    public function __construct(\RdKafka\Producer $producer, \RdKafka\Consumer $consumer, $config)
+    private ?string $correlationId = null;
+    private Producer $producer;
+    private Consumer $consumer;
+    private array $topics = [];
+    private array $queues = [];
+
+    public function __construct(Producer $producer, Consumer $consumer, array $config)
     {
         $this->defaultQueue = $config['queue'];
-        $this->sleepOnError = isset($config['sleep_on_error']) ? $config['sleep_on_error'] : 5;
+        if (@$config['sleep_on_error']) {
+            $this->sleepOnError = $config['sleep_on_error'];
+        }
 
         $this->producer = $producer;
         $this->consumer = $consumer;
@@ -63,11 +39,11 @@ class KafkaQueue extends Queue implements QueueContract
     /**
      * Get the size of the queue.
      *
-     * @param string $queue
+     * @param null|string $queue
      *
      * @return int
      */
-    public function size($queue = null)
+    public function size($queue = null): int
     {
         //Since Kafka is an infinite queue we can't count the size of the queue.
         return 1;
@@ -82,7 +58,7 @@ class KafkaQueue extends Queue implements QueueContract
      *
      * @return bool
      */
-    public function push($job, $data = '', $queue = null)
+    public function push($job, $data = '', $queue = null): bool
     {
         return $this->pushRaw($this->createPayload($job, $queue, $data), $queue, []);
     }
@@ -90,15 +66,15 @@ class KafkaQueue extends Queue implements QueueContract
     /**
      * Push a raw payload onto the queue.
      *
-     * @param string $payload
-     * @param string $queue
+     * @param mixed $payload
+     * @param ?string $queue
      * @param array $options
      *
      * @throws QueueKafkaException
      *
-     * @return mixed
+     * @return ?string
      */
-    public function pushRaw($payload, $queue = null, array $options = [])
+    public function pushRaw($payload, $queue = null, array $options = []): ?string
     {
         try {
             $topic = $this->getTopic($queue);
@@ -110,6 +86,7 @@ class KafkaQueue extends Queue implements QueueContract
             return $pushRawCorrelationId;
         } catch (ErrorException $exception) {
             $this->reportConnectionError('pushRaw', $exception);
+            return null;
         }
     }
 
@@ -125,7 +102,7 @@ class KafkaQueue extends Queue implements QueueContract
      *
      * @return mixed
      */
-    public function later($delay, $job, $data = '', $queue = null)
+    public function later($delay, $job, $data = '', $queue = null): mixed
     {
         //Later is not sup
         throw new QueueKafkaException('Later not yet implemented');
@@ -138,9 +115,9 @@ class KafkaQueue extends Queue implements QueueContract
      *
      * @throws QueueKafkaException
      *
-     * @return \Illuminate\Queue\Jobs\Job|null
+     * @return KafkaJob|null
      */
-    public function pop($queue = null)
+    public function pop($queue = null): ?KafkaJob
     {
         try {
             $queue = $this->getQueueName($queue);
@@ -167,7 +144,7 @@ class KafkaQueue extends Queue implements QueueContract
                     );
                 case RD_KAFKA_RESP_ERR__PARTITION_EOF:
                 case RD_KAFKA_RESP_ERR__TIMED_OUT:
-                    break;
+                    return null;
                 default:
                     throw new QueueKafkaException($message->errstr(), $message->err);
             }
@@ -177,11 +154,11 @@ class KafkaQueue extends Queue implements QueueContract
     }
 
     /**
-     * @param string $queue
+     * @param null|string $queue
      *
      * @return string
      */
-    private function getQueueName($queue)
+    private function getQueueName(?string $queue = null): string
     {
         return $queue ?: $this->defaultQueue;
     }
@@ -189,11 +166,11 @@ class KafkaQueue extends Queue implements QueueContract
     /**
      * Return a Kafka Topic based on the name
      *
-     * @param $queue
+     * @param null|string $queue
      *
      * @return \RdKafka\ProducerTopic
      */
-    private function getTopic($queue)
+    private function getTopic(?string $queue = null): \RdKafka\ProducerTopic
     {
         return $this->producer->newTopic($this->getQueueName($queue));
     }
@@ -203,7 +180,7 @@ class KafkaQueue extends Queue implements QueueContract
      *
      * @param string $id
      */
-    public function setCorrelationId($id)
+    public function setCorrelationId(string $id): void
     {
         $this->correlationId = $id;
     }
@@ -213,29 +190,21 @@ class KafkaQueue extends Queue implements QueueContract
      *
      * @return string
      */
-    public function getCorrelationId()
+    public function getCorrelationId(): string
     {
         return $this->correlationId ?: uniqid('', true);
-    }
-
-    /**
-     * @return array
-     */
-    public function getConfig()
-    {
-        return $this->config;
     }
 
     /**
      * Create a payload array from the given job and data.
      *
      * @param  string $job
-     * @param  string $queue
+     * @param  ?string $queue
      * @param  mixed $data
      *
      * @return array
      */
-    protected function createPayloadArray($job, $queue = null, $data = '')
+    protected function createPayloadArray($job, $queue = null, $data = ''): array
     {
         return array_merge(parent::createPayloadArray($job, $queue, $data), [
             'id' => $this->getCorrelationId(),
@@ -249,12 +218,12 @@ class KafkaQueue extends Queue implements QueueContract
      *
      * @throws QueueKafkaException
      */
-    protected function reportConnectionError($action, Exception $e)
+    protected function reportConnectionError(string $action, Exception $e): void
     {
         Log::error('Kafka error while attempting ' . $action . ': ' . $e->getMessage());
 
         // If it's set to false, throw an error rather than waiting
-        if ($this->sleepOnError === false) {
+        if (!$this->sleepOnError) {
             throw new QueueKafkaException('Error writing data to the connection with Kafka');
         }
 
@@ -263,9 +232,9 @@ class KafkaQueue extends Queue implements QueueContract
     }
 
     /**
-     * @return \RdKafka\Consumer
+     * @return Consumer
      */
-    public function getConsumer()
+    public function getConsumer(): Consumer
     {
         return $this->consumer;
     }

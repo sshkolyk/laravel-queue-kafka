@@ -25,6 +25,7 @@ return [
      * Address of the Kafka broker
      */
     'brokers' => env('KAFKA_BROKERS', 'localhost'),
+    'bootstrap_servers' => env('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092'), //or 'kafka1:9092,kafka2:9092'
 
     /*
      * Determine the number of seconds to sleep if there's an error communicating with kafka
@@ -56,4 +57,6 @@ return [
      * SASL password for use with the PLAIN and SASL-SCRAM-.. mechanism 
      */
     'sasl_plain_password' => env('KAFKA_SASL_PLAIN_PASSWORD'),
+
+    'auto_commit' => env('KAFKA_AUTO_COMMIT', 'true'),
 ];

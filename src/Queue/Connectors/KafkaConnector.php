@@ -3,19 +3,18 @@
 namespace Rapide\LaravelQueueKafka\Queue\Connectors;
 
 use Illuminate\Container\Container;
+use Illuminate\Contracts\Queue\Queue;
 use Illuminate\Queue\Connectors\ConnectorInterface;
 use Rapide\LaravelQueueKafka\Queue\KafkaQueue;
 use RdKafka\Conf;
 use RdKafka\KafkaConsumer;
 use RdKafka\Producer;
 use RdKafka\TopicConf;
+use Illuminate\Support\Arr;
 
 class KafkaConnector implements ConnectorInterface
 {
-    /**
-     * @var Container
-     */
-    private $container;
+    private Container $container;
 
     /**
      * KafkaConnector constructor.
@@ -34,31 +33,34 @@ class KafkaConnector implements ConnectorInterface
      *
      * @return \Illuminate\Contracts\Queue\Queue
      */
-    public function connect(array $config)
+    public function connect(array $config): Queue
     {
-        /** @var Producer $producer */
-        $producer = $this->container->makeWith('queue.kafka.producer', []);
-        $producer->addBrokers($config['brokers']);
+        /** @var \RdKafka\Conf $conf */
+        $conf = $this->container->makeWith('queue.kafka.conf', []);
+        $conf->set('bootstrap.servers', $config['bootstrap_servers']);
+        $conf->set('metadata.broker.list', $config['brokers']);
+        /** @var \RdKafka\Producer $producer */
+        $producer = new \RdKafka\Producer($conf);
 
-        /** @var TopicConf $topicConf */
+        /** @var \RdKafka\TopicConf $topicConf */
         $topicConf = $this->container->makeWith('queue.kafka.topic_conf', []);
         $topicConf->set('auto.offset.reset', 'largest');
 
-        /** @var Conf $conf */
+        /** @var \RdKafka\Conf $conf */
         $conf = $this->container->makeWith('queue.kafka.conf', []);
+        $conf->set('bootstrap.servers', $config['bootstrap_servers']);
         if (true === $config['sasl_enable']) {
             $conf->set('sasl.mechanisms', 'PLAIN');
             $conf->set('sasl.username', $config['sasl_plain_username']);
             $conf->set('sasl.password', $config['sasl_plain_password']);
             $conf->set('ssl.ca.location', $config['ssl_ca_location']);
         }
-        $conf->set('group.id', array_get($config, 'consumer_group_id', 'php-pubsub'));
+        $conf->set('group.id', $config['consumer_group_id']);
         $conf->set('metadata.broker.list', $config['brokers']);
-        $conf->set('enable.auto.commit', 'false');
-        $conf->set('offset.store.method', 'broker');
+        $conf->set('enable.auto.commit', $config['auto_commit']);
         $conf->setDefaultTopicConf($topicConf);
 
-        /** @var KafkaConsumer $consumer */
+        /** @var \RdKafka\KafkaConsumer $consumer */
         $consumer = $this->container->makeWith('queue.kafka.consumer', ['conf' => $conf]);
 
         return new KafkaQueue(
