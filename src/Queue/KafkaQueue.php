@@ -76,11 +76,8 @@ class KafkaQueue extends Queue implements QueueContract
     {
         try {
             $topic = $this->getTopic($queue);
-
             $pushRawCorrelationId = $this->getCorrelationId();
-
             $topic->produce(RD_KAFKA_PARTITION_UA, 0, $payload, $pushRawCorrelationId);
-
             return $pushRawCorrelationId;
         } catch (ErrorException $exception) {
             $this->reportConnectionError('pushRaw', $exception);
@@ -102,7 +99,7 @@ class KafkaQueue extends Queue implements QueueContract
      */
     public function later($delay, $job, $data = '', $queue = null): mixed
     {
-        //Later is not sup
+        //Later is not supported
         throw new QueueKafkaException('Later not yet implemented');
     }
 
