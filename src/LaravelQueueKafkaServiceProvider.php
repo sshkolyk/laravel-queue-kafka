@@ -13,9 +13,10 @@ class LaravelQueueKafkaServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->mergeConfigFrom(
-            __DIR__ . '/../config/queue-kafka.php', 'queue.connections.kafka'
-        );
+        $config_path = file_exists(config_path('queue-kafka.php')) ?
+            config_path('queue-kafka.php') :
+            __DIR__.'/../config/queue-kafka.php';
+        $this->mergeConfigFrom($config_path, 'queue.connections.kafka');
 
         $this->registerDependencies();
     }
