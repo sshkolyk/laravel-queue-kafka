@@ -21,13 +21,30 @@ return [
      */
     'consumer_group_id' => env('KAFKA_CONSUMER_GROUP_ID', 'laravel_queue'),
 
+    /*
+     *
+     */
     'kafka_consumer_partition' => env('KAFKA_CONSUMER_PARTITION', 0),
 
     /*
-     * Address of the Kafka broker
+     * Producer partitioner algo
+     * Can be:
+     * random - random distribution, consistent - CRC32 hash of key (Empty and NULL keys are mapped to single partition),
+     * consistent_random - CRC32 hash of key (Empty and NULL keys are randomly partitioned),
+     * murmur2 - Java Producer compatible Murmur2 hash of key (NULL keys are mapped to single partition),
+     * murmur2_random - Java Producer compatible Murmur2 hash of key (NULL keys are randomly partitioned.
+     *      This is functionally equivalent to the default partitioner in the Java Producer.),
+     * fnv1a - FNV-1a hash of key (NULL keys are mapped to single partition),
+     * fnv1a_random - FNV-1a hash of key (NULL keys are randomly partitioned).
      */
-    'brokers' => env('KAFKA_BROKERS', 'localhost'),
-    'bootstrap_servers' => env('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092'), //or 'kafka1:9092,kafka2:9092'
+    'producer_partitioner' => env('KAFKA_PRODUCER_PARTITIONER', 'murmur2_random'),
+
+    /*
+     * Address of the Kafka broker
+     * Comma-separated list of Kafka broker addresses the client will initially connect to.
+     * The client uses these brokers to discover the full Kafka cluster topology.
+     */
+    'brokers' => env('KAFKA_BROKERS', 'localhost:9092'),
 
     /*
      * Determine the number of seconds to sleep if there's an error communicating with kafka
@@ -46,14 +63,18 @@ return [
     'ssl_ca_location' => '',
 
     /*
-     * SASL username for use with the PLAIN and SASL-SCRAM-.. mechanisms 
+     * SASL username for use with the PLAIN and SASL-SCRAM-.. mechanisms
      */
     'sasl_plain_username' => env('KAFKA_SASL_PLAIN_USERNAME'),
 
     /*
-     * SASL password for use with the PLAIN and SASL-SCRAM-.. mechanism 
+     * SASL password for use with the PLAIN and SASL-SCRAM-.. mechanism
      */
     'sasl_plain_password' => env('KAFKA_SASL_PLAIN_PASSWORD'),
 
+    /*
+     * The property enable.auto.commit is set to true by default, and Kafka commits the current offset back to the
+     *     Kafka broker at a specified interval, controlled by the auto.commit.interval.ms setting (default is 5000 ms).
+    */
     'auto_commit' => env('KAFKA_AUTO_COMMIT', 'true'),
 ];

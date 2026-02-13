@@ -232,7 +232,7 @@ class KafkaQueue extends Queue implements QueueContract
 
             /** @var \RdKafka\Conf $conf */
             $consumerConf = App::makeWith('queue.kafka.conf', []);
-            $consumerConf->set('bootstrap.servers', $this->getConfig()['bootstrap_servers']);
+            $consumerConf->set('bootstrap.servers', $this->getConfig()['brokers']);
             if ($this->getConfig()['sasl_enable'] === true) {
                 $consumerConf->set('sasl.mechanisms', 'PLAIN');
                 $consumerConf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
@@ -259,8 +259,9 @@ class KafkaQueue extends Queue implements QueueContract
         if (! $this->_producer) {
             /** @var \RdKafka\Conf $producerConf */
             $producerConf = App::makeWith('queue.kafka.conf', []);
-            $producerConf->set('bootstrap.servers', $this->getConfig()['bootstrap_servers']);
+            $producerConf->set('bootstrap.servers', $this->getConfig()['brokers']);
             $producerConf->set('metadata.broker.list', $this->getConfig()['brokers']);
+            $producerConf->set('partitioner', $this->getConfig()['producer_partitioner']);
             if ($this->getConfig()['sasl_enable'] === true) {
                 $producerConf->set('sasl.mechanisms', 'PLAIN');
                 $producerConf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
