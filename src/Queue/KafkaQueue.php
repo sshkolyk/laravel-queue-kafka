@@ -2,16 +2,16 @@
 
 namespace Rapide\LaravelQueueKafka\Queue;
 
-use Exception;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\Queue;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
-use RdKafka\Consumer;
 use RdKafka\ConsumerTopic;
+use RdKafka\KafkaConsumer;
 use RdKafka\Producer;
 use RdKafka\ProducerTopic;
 
@@ -23,7 +23,7 @@ class KafkaQueue extends Queue implements QueueContract
 
     protected ?Producer $_producer = null;
 
-    protected ?Consumer $_consumer = null;
+    protected ?KafkaConsumer $_consumer = null;
 
     /** @var array<ProducerTopic> */
     protected array $_producer_topics = [];
@@ -81,15 +81,16 @@ class KafkaQueue extends Queue implements QueueContract
     {
         try {
             $topic = $this->getProducerTopic($queue);
-            $pushRawCorrelationId = uniqid('', true);
-            $topic->produce(RD_KAFKA_PARTITION_UA, 0, $payload, $pushRawCorrelationId);
-            if ($result = $this->getProducer()->flush(2000)) {
+            $key = Str::upper((string) Str::ulid());
+            $topic->produce(RD_KAFKA_PARTITION_UA, 0, $payload, $key);
+            if ($result = $this->getProducer()->flush($this->getConfig()['timeout_ms'])) {
                 $this->reportConnectionError(
                     'pushRaw',
                     new QueueKafkaException('Kafka flush error #'.$result)
                 );
             }
-            return $pushRawCorrelationId;
+
+            return $key;
         } catch (\Throwable $exception) {
             $this->reportConnectionError('pushRaw', $exception);
 
@@ -125,7 +126,7 @@ class KafkaQueue extends Queue implements QueueContract
         try {
             $queue = $this->getQueueName($queue);
             $topic = $this->getConsumerTopic($queue);
-            $message = $topic->consume($this->getConfig()['consumer_partition'], 1000);
+            $message = $topic->consume($this->getConfig()['consumer_partition'], $this->getConfig()['timeout_ms']);
             if ($message === null) {
                 $this->stopConsumeTopic($queue);
 
@@ -209,7 +210,7 @@ class KafkaQueue extends Queue implements QueueContract
     /**
      * @throws QueueKafkaException
      */
-    protected function reportConnectionError(string $action, Exception $e): void
+    protected function reportConnectionError(string $action, \Throwable $e): void
     {
         Log::error('Kafka error while attempting '.$action.': '.$e->getMessage());
 
@@ -227,12 +228,13 @@ class KafkaQueue extends Queue implements QueueContract
      *
      * @throws BindingResolutionException
      */
-    protected function getConsumer(): Consumer
+    protected function getConsumer(): KafkaConsumer
     {
         if (! $this->_consumer) {
             /** @var \RdKafka\TopicConf $topicConf */
             $topicConf = App::makeWith('queue.kafka.topic_conf', []);
             $topicConf->set('auto.offset.reset', $this->getConfig()['auto_offset_reset']);
+            $topicConf->set('request.timeout.ms', $this->getConfig()['timeout_ms']);
 
             /** @var \RdKafka\Conf $conf */
             $consumerConf = App::makeWith('queue.kafka.conf', []);
@@ -272,6 +274,9 @@ class KafkaQueue extends Queue implements QueueContract
                 $producerConf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
                 $producerConf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);
             }
+            $topicConf = App::makeWith('queue.kafka.topic_conf', []);
+            $topicConf->set('request.timeout.ms', $this->getConfig()['timeout_ms']);
+            $producerConf->setDefaultTopicConf($topicConf);
             /** @var \RdKafka\Producer $producer */
             $this->_producer = new \RdKafka\Producer($producerConf);
         }

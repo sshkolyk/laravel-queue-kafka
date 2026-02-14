@@ -86,4 +86,7 @@ return [
      * anything else: throw exception to the consumer
      */
     'auto_offset_reset' => env('KAFKA_AUTO_RESET', 'earliest'),
+
+    /** All operations timeout in ms */
+    'timeout_ms' => env('KAFKA_TIMEOUT_MS', 1000),
 ];
