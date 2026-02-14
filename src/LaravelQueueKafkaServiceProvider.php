@@ -58,6 +58,10 @@ class LaravelQueueKafkaServiceProvider extends ServiceProvider
         $this->app->bind('queue.kafka.consumer', function ($app, $parameters) {
             return new \RdKafka\Consumer($parameters['conf']);
         });
+
+        $this->app->bind('queue.kafka.kafka_consumer', function ($app, $parameters) {
+            return new \RdKafka\KafkaConsumer($parameters['conf']);
+        });
     }
 
     /**
@@ -70,6 +74,7 @@ class LaravelQueueKafkaServiceProvider extends ServiceProvider
         return [
             'queue.kafka.topic_conf',
             'queue.kafka.producer',
+            'queue.kafka.kafka_consumer',
             'queue.kafka.consumer',
             'queue.kafka.conf',
         ];

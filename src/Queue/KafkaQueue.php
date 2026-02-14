@@ -12,8 +12,10 @@ use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
 use RdKafka\Consumer;
 use RdKafka\ConsumerTopic;
+use RdKafka\KafkaConsumer;
 use RdKafka\Producer;
 use RdKafka\ProducerTopic;
+use RdKafka\TopicPartition;
 
 class KafkaQueue extends Queue implements QueueContract
 {
@@ -22,6 +24,8 @@ class KafkaQueue extends Queue implements QueueContract
     protected ?int $sleepOnError = null;
 
     protected ?Producer $_producer = null;
+
+    protected ?\RdKafka\Conf $_consumer_conf = null;
 
     protected ?Consumer $_consumer = null;
 
@@ -50,11 +54,17 @@ class KafkaQueue extends Queue implements QueueContract
     public function size($queue = null): int
     {
         $queue = $this->getQueueName($queue);
-        $this->getConsumerTopic($queue);
-        $size = $this->getConsumer()->getOutQLen();
-        $this->stopConsumeTopic($queue);
-
-        return $size;
+        $kafkaConsumer = $this->getKafkaConsumer();
+        $kafkaConsumer->queryWatermarkOffsets(
+            $queue,
+            $this->getConfig()['consumer_partition'],
+            $low,
+            $high,
+            $this->getConfig()['timeout_ms'],
+        );
+        $topicPartition = new TopicPartition($queue, $this->getConfig()['consumer_partition']);
+        $offsets = $kafkaConsumer->getCommittedOffsets([$topicPartition], $this->getConfig()['timeout_ms']);
+        return $high - $offsets[0]->getOffset();
     }
 
     /**
@@ -224,36 +234,51 @@ class KafkaQueue extends Queue implements QueueContract
     }
 
     /**
-     * Returns Kafka Consumer
-     *
      * @throws BindingResolutionException
      */
-    protected function getConsumer(): Consumer
+    protected function getConsumerConfig(): \RdKafka\Conf
     {
-        if (! $this->_consumer) {
+        if ($this->_consumer_conf === null) {
             /** @var \RdKafka\TopicConf $topicConf */
             $topicConf = App::makeWith('queue.kafka.topic_conf', []);
             $topicConf->set('auto.offset.reset', $this->getConfig()['auto_offset_reset']);
 
             /** @var \RdKafka\Conf $conf */
-            $consumerConf = App::makeWith('queue.kafka.conf', []);
-            $consumerConf->set('bootstrap.servers', $this->getConfig()['brokers']);
+            $this->_consumer_conf = App::makeWith('queue.kafka.conf', []);
+            $this->_consumer_conf->set('bootstrap.servers', $this->getConfig()['brokers']);
             if ($this->getConfig()['sasl_enable'] === true) {
-                $consumerConf->set('sasl.mechanisms', 'PLAIN');
-                $consumerConf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
-                $consumerConf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
-                $consumerConf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);
+                $this->_consumer_conf->set('sasl.mechanisms', 'PLAIN');
+                $this->_consumer_conf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
+                $this->_consumer_conf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
+                $this->_consumer_conf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);
             }
-            $consumerConf->set('group.id', $this->getConfig()['consumer_group_id']);
-            $consumerConf->set('metadata.broker.list', $this->getConfig()['brokers']);
-            $consumerConf->set('enable.auto.commit', $this->getConfig()['auto_commit']);
-            $consumerConf->setDefaultTopicConf($topicConf);
+            $this->_consumer_conf->set('group.id', $this->getConfig()['consumer_group_id']);
+            $this->_consumer_conf->set('metadata.broker.list', $this->getConfig()['brokers']);
+            $this->_consumer_conf->set('enable.auto.commit', $this->getConfig()['auto_commit']);
+            $this->_consumer_conf->setDefaultTopicConf($topicConf);
+        }
 
-            /** @var \RdKafka\Consumer $consumer */
-            $this->_consumer = $this->container->makeWith('queue.kafka.consumer', ['conf' => $consumerConf]);
+        return $this->_consumer_conf;
+    }
+
+    /**
+     * @throws BindingResolutionException
+     */
+    protected function getConsumer(): Consumer
+    {
+        if (! $this->_consumer) {
+            $this->_consumer = $this->container->makeWith('queue.kafka.consumer', ['conf' => $this->getConsumerConfig()]);
         }
 
         return $this->_consumer;
+    }
+
+    /**
+     * @throws BindingResolutionException
+     */
+    protected function getKafkaConsumer(): KafkaConsumer
+    {
+        return $this->container->makeWith('queue.kafka.kafka_consumer', ['conf' => $this->getConsumerConfig()]);
     }
 
     /**
