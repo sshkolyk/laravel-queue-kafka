@@ -228,7 +228,7 @@ class KafkaQueue extends Queue implements QueueContract
         if (! $this->_consumer) {
             /** @var \RdKafka\TopicConf $topicConf */
             $topicConf = App::makeWith('queue.kafka.topic_conf', []);
-            $topicConf->set('auto.offset.reset', 'largest');
+            $topicConf->set('auto.offset.reset', $this->getConfig()['auto_offset_reset']);
 
             /** @var \RdKafka\Conf $conf */
             $consumerConf = App::makeWith('queue.kafka.conf', []);

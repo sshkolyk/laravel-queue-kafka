@@ -55,12 +55,12 @@ return [
     /*
      * sasl authorization
      */
-    'sasl_enable' => false,
+    'sasl_enable' => env('KAFKA_SASL_ENABLE', false),
 
     /*
      * File or directory path to CA certificate(s) for verifying the broker's key. example: storage_path('kafka.client.truststore.jks')
      */
-    'ssl_ca_location' => '',
+    'ssl_ca_location' => env('KAFKA_SSL_CA_LOCATION', ''),
 
     /*
      * SASL username for use with the PLAIN and SASL-SCRAM-.. mechanisms
@@ -77,4 +77,13 @@ return [
      *     Kafka broker at a specified interval, controlled by the auto.commit.interval.ms setting (default is 5000 ms).
     */
     'auto_commit' => env('KAFKA_AUTO_COMMIT', 'true'),
+
+    /**
+     * What to do when there is no initial offset in Kafka or if the current offset does not exist any more on the server (e.g. because that data has been deleted):
+     * earliest: automatically reset the offset to the earliest offset
+     * latest: automatically reset the offset to the latest offset
+     * none: throw exception to the consumer if no previous offset is found for the consumer's group
+     * anything else: throw exception to the consumer
+     */
+    'auto_offset_reset' => env('KAFKA_AUTO_RESET', 'latest'),
 ];
