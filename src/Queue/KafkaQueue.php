@@ -2,7 +2,6 @@
 
 namespace Rapide\LaravelQueueKafka\Queue;
 
-use ErrorException;
 use Exception;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
@@ -84,9 +83,14 @@ class KafkaQueue extends Queue implements QueueContract
             $topic = $this->getProducerTopic($queue);
             $pushRawCorrelationId = uniqid('', true);
             $topic->produce(RD_KAFKA_PARTITION_UA, 0, $payload, $pushRawCorrelationId);
-
+            if ($result = $this->getProducer()->flush(2000)) {
+                $this->reportConnectionError(
+                    'pushRaw',
+                    new QueueKafkaException('Kafka flush error #'.$result)
+                );
+            }
             return $pushRawCorrelationId;
-        } catch (ErrorException $exception) {
+        } catch (\Throwable $exception) {
             $this->reportConnectionError('pushRaw', $exception);
 
             return null;
