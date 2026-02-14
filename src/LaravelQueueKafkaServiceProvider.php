@@ -11,7 +11,7 @@ class LaravelQueueKafkaServiceProvider extends ServiceProvider
     /**
      * Register the service provider.
      */
-    public function register()
+    public function register(): void
     {
         $config_path = file_exists(config_path('queue-kafka.php')) ?
             config_path('queue-kafka.php') :
@@ -24,10 +24,10 @@ class LaravelQueueKafkaServiceProvider extends ServiceProvider
     /**
      * Register the application's event listeners.
      */
-    public function boot()
+    public function boot(): void
     {
         $this->publishes([
-            __DIR__ . '/../config/queue-kafka.php' => config_path('queue-kafka.php'),
+            __DIR__.'/../config/queue-kafka.php' => config_path('queue-kafka.php'),
         ], 'queue-kafka-config');
         /** @var QueueManager $queue */
         $queue = $this->app['queue'];
@@ -41,18 +41,18 @@ class LaravelQueueKafkaServiceProvider extends ServiceProvider
     /**
      * Register adapter dependencies in the container.
      */
-    protected function registerDependencies()
+    protected function registerDependencies(): void
     {
         $this->app->bind('queue.kafka.topic_conf', function () {
-            return new \RdKafka\TopicConf();
+            return new \RdKafka\TopicConf;
         });
 
         $this->app->bind('queue.kafka.producer', function () {
-            return new \RdKafka\Producer();
+            return new \RdKafka\Producer;
         });
 
         $this->app->bind('queue.kafka.conf', function () {
-            return new \RdKafka\Conf();
+            return new \RdKafka\Conf;
         });
 
         $this->app->bind('queue.kafka.consumer', function ($app, $parameters) {
@@ -65,7 +65,7 @@ class LaravelQueueKafkaServiceProvider extends ServiceProvider
      *
      * @return array
      */
-    public function provides()
+    public function provides(): array
     {
         return [
             'queue.kafka.topic_conf',

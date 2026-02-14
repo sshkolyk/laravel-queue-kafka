@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
+use RdKafka\Consumer;
 use RdKafka\ConsumerTopic;
-use RdKafka\KafkaConsumer;
 use RdKafka\Producer;
 use RdKafka\ProducerTopic;
 
@@ -23,7 +23,7 @@ class KafkaQueue extends Queue implements QueueContract
 
     protected ?Producer $_producer = null;
 
-    protected ?KafkaConsumer $_consumer = null;
+    protected ?Consumer $_consumer = null;
 
     /** @var array<ProducerTopic> */
     protected array $_producer_topics = [];
@@ -228,13 +228,12 @@ class KafkaQueue extends Queue implements QueueContract
      *
      * @throws BindingResolutionException
      */
-    protected function getConsumer(): KafkaConsumer
+    protected function getConsumer(): Consumer
     {
         if (! $this->_consumer) {
             /** @var \RdKafka\TopicConf $topicConf */
             $topicConf = App::makeWith('queue.kafka.topic_conf', []);
             $topicConf->set('auto.offset.reset', $this->getConfig()['auto_offset_reset']);
-            $topicConf->set('request.timeout.ms', $this->getConfig()['timeout_ms']);
 
             /** @var \RdKafka\Conf $conf */
             $consumerConf = App::makeWith('queue.kafka.conf', []);
@@ -250,7 +249,7 @@ class KafkaQueue extends Queue implements QueueContract
             $consumerConf->set('enable.auto.commit', $this->getConfig()['auto_commit']);
             $consumerConf->setDefaultTopicConf($topicConf);
 
-            /** @var \RdKafka\KafkaConsumer $consumer */
+            /** @var \RdKafka\Consumer $consumer */
             $this->_consumer = $this->container->makeWith('queue.kafka.consumer', ['conf' => $consumerConf]);
         }
 
