@@ -85,5 +85,5 @@ return [
      * none: throw exception to the consumer if no previous offset is found for the consumer's group
      * anything else: throw exception to the consumer
      */
-    'auto_offset_reset' => env('KAFKA_AUTO_RESET', 'latest'),
+    'auto_offset_reset' => env('KAFKA_AUTO_RESET', 'earliest'),
 ];
