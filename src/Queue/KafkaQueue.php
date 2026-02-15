@@ -299,6 +299,7 @@ class KafkaQueue extends Queue implements QueueContract
             $producerConf->set('partitioner', $this->getConfig()['producer_partitioner']);
             if ($this->getConfig()['sasl_enable'] === true) {
                 $producerConf->set('sasl.mechanisms', 'PLAIN');
+                $producerConf->set('security.protocol', 'SASL_PLAINTEXT');
                 $producerConf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
                 $producerConf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
                 $producerConf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);
