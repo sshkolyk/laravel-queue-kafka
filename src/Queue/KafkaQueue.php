@@ -54,17 +54,22 @@ class KafkaQueue extends Queue implements QueueContract
     public function size($queue = null): int
     {
         $queue = $this->getQueueName($queue);
-        $kafkaConsumer = $this->getKafkaConsumer();
-        $kafkaConsumer->queryWatermarkOffsets(
-            $queue,
-            $this->getConfig()['consumer_partition'],
-            $low,
-            $high,
-            $this->getConfig()['timeout_ms'],
-        );
-        $topicPartition = new TopicPartition($queue, $this->getConfig()['consumer_partition']);
-        $offsets = $kafkaConsumer->getCommittedOffsets([$topicPartition], $this->getConfig()['timeout_ms']);
-        return $high - $offsets[0]->getOffset();
+        try {
+            $kafkaConsumer = $this->getKafkaConsumer();
+            $kafkaConsumer->queryWatermarkOffsets(
+                $queue,
+                $this->getConfig()['consumer_partition'],
+                $low,
+                $high,
+                $this->getConfig()['timeout_ms'],
+            );
+            $topicPartition = new TopicPartition($queue, $this->getConfig()['consumer_partition']);
+            $offsets = $kafkaConsumer->getCommittedOffsets([$topicPartition], $this->getConfig()['timeout_ms']);
+            return $high - $offsets[0]->getOffset();
+        } catch (\Throwable $exception) {
+            Log::error('Kafka error while attempting size(): '.$exception->getMessage());
+            return 0;
+        }
     }
 
     /**
@@ -194,7 +199,7 @@ class KafkaQueue extends Queue implements QueueContract
         $queue = $this->getQueueName($queue);
         if (! array_key_exists($queue, $this->_consumer_topics)) {
             try {
-                $this->_consumer_topics[$queue] = $this->getConsumer()->newTopic($this->getQueueName($queue));
+                $this->_consumer_topics[$queue] = $this->getConsumer()->newTopic($queue);
             } catch (BindingResolutionException $e) {
                 $this->reportConnectionError('getConsumerTopic', $e);
                 throw $e;
@@ -243,11 +248,11 @@ class KafkaQueue extends Queue implements QueueContract
             $topicConf = App::makeWith('queue.kafka.topic_conf', []);
             $topicConf->set('auto.offset.reset', $this->getConfig()['auto_offset_reset']);
 
-            /** @var \RdKafka\Conf $conf */
             $this->_consumer_conf = App::makeWith('queue.kafka.conf', []);
             $this->_consumer_conf->set('bootstrap.servers', $this->getConfig()['brokers']);
             if ($this->getConfig()['sasl_enable'] === true) {
                 $this->_consumer_conf->set('sasl.mechanisms', 'PLAIN');
+                $this->_consumer_conf->set('security.protocol', 'SASL_PLAINTEXT');
                 $this->_consumer_conf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
                 $this->_consumer_conf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
                 $this->_consumer_conf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);
