@@ -65,9 +65,15 @@ class KafkaQueue extends Queue implements QueueContract
             );
             $topicPartition = new TopicPartition($queue, $this->getConfig()['consumer_partition']);
             $offsets = $kafkaConsumer->getCommittedOffsets([$topicPartition], $this->getConfig()['timeout_ms']);
-            return $high - $offsets[0]->getOffset();
+            $offset = $offsets[0]->getOffset();
+            if ($offset < 0) { // when get RD_KAFKA_OFFSET_...
+                return 0;
+            }
+
+            return $high - $offset;
         } catch (\Throwable $exception) {
             Log::error('Kafka error while attempting size(): '.$exception->getMessage());
+
             return 0;
         }
     }
