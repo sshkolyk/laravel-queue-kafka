@@ -257,8 +257,8 @@ class KafkaQueue extends Queue implements QueueContract
             $this->_consumer_conf = App::makeWith('queue.kafka.conf', []);
             $this->_consumer_conf->set('bootstrap.servers', $this->getConfig()['brokers']);
             if ($this->getConfig()['sasl_enable'] === true) {
-                $this->_consumer_conf->set('sasl.mechanisms', 'PLAIN');
-                $this->_consumer_conf->set('security.protocol', 'SASL_PLAINTEXT');
+                $this->_consumer_conf->set('sasl.mechanism', $this->getConfig()['sasl_mechanism']);
+                $this->_consumer_conf->set('security.protocol', $this->getConfig()['sasl_security_protocol']);
                 $this->_consumer_conf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
                 $this->_consumer_conf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
                 $this->_consumer_conf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);
@@ -304,8 +304,9 @@ class KafkaQueue extends Queue implements QueueContract
             $producerConf->set('metadata.broker.list', $this->getConfig()['brokers']);
             $producerConf->set('partitioner', $this->getConfig()['producer_partitioner']);
             if ($this->getConfig()['sasl_enable'] === true) {
-                $producerConf->set('sasl.mechanisms', 'PLAIN');
-                $producerConf->set('security.protocol', 'SASL_PLAINTEXT');
+                $producerConf->set('sasl.mechanism', $this->getConfig()['sasl_mechanism']);
+                $producerConf->set('sasl.mechanism', $this->getConfig()['sasl_mechanism']);
+                $producerConf->set('security.protocol', $this->getConfig()['sasl_security_protocol']);
                 $producerConf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
                 $producerConf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
                 $producerConf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);

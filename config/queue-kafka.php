@@ -56,20 +56,21 @@ return [
      * sasl authorization
      */
     'sasl_enable' => env('KAFKA_SASL_ENABLE', false),
-
+    /**
+     * One of SSL, PLAINTEXT, SASL_PLAINTEXT, SASL_SSL
+     */
+    'sasl_security_protocol' => env('KAFKA_SASL_SECURITY_PROTOCOL', 'SASL_SSL'),
+    /**
+     * One of PLAIN, SCRAM-SHA-256, SCRAM-SHA-512
+     */
+    'sasl_mechanism' => env('KAFKA_SASL_MECHANISM', 'SCRAM-SHA-512'),
     /*
      * File or directory path to CA certificate(s) for verifying the broker's key. example: storage_path('kafka.client.truststore.jks')
      */
     'ssl_ca_location' => env('KAFKA_SSL_CA_LOCATION', ''),
 
-    /*
-     * SASL username for use with the PLAIN and SASL-SCRAM-.. mechanisms
-     */
     'sasl_plain_username' => env('KAFKA_SASL_PLAIN_USERNAME'),
 
-    /*
-     * SASL password for use with the PLAIN and SASL-SCRAM-.. mechanism
-     */
     'sasl_plain_password' => env('KAFKA_SASL_PLAIN_PASSWORD'),
 
     /*
