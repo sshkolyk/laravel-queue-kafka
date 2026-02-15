@@ -66,6 +66,9 @@ class KafkaQueue extends Queue implements QueueContract
             $topicPartition = new TopicPartition($queue, $this->getConfig()['consumer_partition']);
             $offsets = $kafkaConsumer->getCommittedOffsets([$topicPartition], $this->getConfig()['timeout_ms']);
             $offset = $offsets[0]->getOffset();
+            if ($offset === -1001) {
+                return $high;
+            }
             if ($offset < 0) { // when get RD_KAFKA_OFFSET_...
                 return 0;
             }
