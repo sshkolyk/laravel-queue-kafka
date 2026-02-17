@@ -1,12 +1,14 @@
 <?php
+namespace Rapide\LaravelQueueKafka\Tests;
 
+use Mockery;
 use PHPUnit\Framework\TestCase;
 use Rapide\LaravelQueueKafka\Queue\Connectors\KafkaConnector;
 use Rapide\LaravelQueueKafka\Queue\KafkaQueue;
 
 class KafkaConnectorTest extends TestCase
 {
-    public function test_connect()
+    public function test_connect(): void
     {
         $config = [
             'host' => getenv('HOST'),
