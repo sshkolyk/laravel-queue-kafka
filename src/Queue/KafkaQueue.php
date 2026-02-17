@@ -19,10 +19,6 @@ use RdKafka\TopicPartition;
 
 class KafkaQueue extends Queue implements QueueContract
 {
-    protected string $defaultQueue;
-
-    protected ?int $sleepOnError = null;
-
     protected ?Producer $_producer = null;
 
     protected ?\RdKafka\Conf $_consumer_conf = null;
@@ -34,10 +30,6 @@ class KafkaQueue extends Queue implements QueueContract
 
     public function __construct(array $config)
     {
-        $this->defaultQueue = $config['queue'];
-        if (@$config['sleep_on_error']) {
-            $this->sleepOnError = $config['sleep_on_error'];
-        }
         $this->setConfig($config);
     }
 
@@ -166,7 +158,7 @@ class KafkaQueue extends Queue implements QueueContract
                         connection: $this,
                         message: $message,
                         connectionName: $this->connectionName,
-                        queue: $queue ?: $this->defaultQueue,
+                        queue: $queue,
                         topic: $topic,
                     );
                 case RD_KAFKA_RESP_ERR__PARTITION_EOF:
@@ -186,7 +178,7 @@ class KafkaQueue extends Queue implements QueueContract
 
     protected function getQueueName(?string $queue = null): string
     {
-        return $queue ?: $this->defaultQueue;
+        return $queue ?: $this->getConfig()['queue'];
     }
 
     /**
@@ -236,12 +228,12 @@ class KafkaQueue extends Queue implements QueueContract
         Log::error('Kafka error while attempting '.$action.': '.$e->getMessage());
 
         // If it's set to false, throw an error rather than waiting
-        if (! $this->sleepOnError) {
+        if (! $this->getConfig()['sleep_on_error']) {
             throw new QueueKafkaException('Error Kafka connection');
         }
 
         // Sleep so that we don't flood the log file
-        sleep($this->sleepOnError);
+        sleep($this->getConfig()['sleep_on_error']);
     }
 
     /**
