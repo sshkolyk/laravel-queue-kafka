@@ -99,22 +99,29 @@ class KafkaQueue extends Queue implements QueueContract
     public function pushRaw($payload, $queue = null, array $options = []): ?string
     {
         try {
-            $topic = $this->getProducerTopic($queue);
-            $key = Str::upper((string) Str::ulid());
-            $topic->produce(RD_KAFKA_PARTITION_UA, 0, $payload, $key);
-            if ($result = $this->getProducer()->flush($this->getConfig()['timeout_ms'])) {
-                $this->reportConnectionError(
-                    'pushRaw',
-                    new QueueKafkaException('Kafka flush error #'.$result)
-                );
-            }
-
-            return $key;
+            return $this->tryPushRaw($payload, $queue, $options);
         } catch (\Throwable $exception) {
-            $this->reportConnectionError('pushRaw', $exception);
-
-            return null;
+            $this->getProducer(reset: true);
+            try {
+                return $this->tryPushRaw($payload, $queue, $options);
+            } catch (\Throwable $exception) {
+                $this->reportConnectionError('pushRaw', $exception);
+            }
         }
+        return null;
+    }
+
+
+    protected function tryPushRaw($payload, $queue = null, array $options = []): ?string
+    {
+        $topic = $this->getProducerTopic($queue);
+        $key = Str::upper((string) Str::ulid());
+        $topic->produce(RD_KAFKA_PARTITION_UA, 0, $payload, $key);
+        if ($result = $this->getProducer()->flush($this->getConfig()['timeout_ms'])) {
+            throw new QueueKafkaException('Kafka flush error #'.$result);
+        }
+
+        return $key;
     }
 
     /**
@@ -288,9 +295,9 @@ class KafkaQueue extends Queue implements QueueContract
     /**
      * Returns Kafka Producer
      */
-    protected function getProducer(): Producer
+    protected function getProducer(bool $reset = false): Producer
     {
-        if (! $this->_producer) {
+        if (! $this->_producer || $reset) {
             /** @var \RdKafka\Conf $producerConf */
             $producerConf = App::makeWith('queue.kafka.conf', []);
             $producerConf->set('bootstrap.servers', $this->getConfig()['brokers']);
