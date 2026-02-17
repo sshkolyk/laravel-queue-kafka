@@ -29,9 +29,6 @@ class KafkaQueue extends Queue implements QueueContract
 
     protected ?Consumer $_consumer = null;
 
-    /** @var array<ProducerTopic> */
-    protected array $_producer_topics = [];
-
     /** @var array<ConsumerTopic> */
     protected array $_consumer_topics = [];
 
@@ -48,8 +45,6 @@ class KafkaQueue extends Queue implements QueueContract
      * Get the size of the queue.
      *
      * @param  null|string  $queue
-     *
-     * @throws BindingResolutionException
      */
     public function size($queue = null): int
     {
@@ -192,12 +187,7 @@ class KafkaQueue extends Queue implements QueueContract
      */
     protected function getProducerTopic(?string $queue = null): ProducerTopic
     {
-        $queue = $this->getQueueName($queue);
-        if (! array_key_exists($queue, $this->_producer_topics)) {
-            $this->_producer_topics[$queue] = $this->getProducer()->newTopic($queue);
-        }
-
-        return $this->_producer_topics[$queue];
+        return $this->getProducer()->newTopic($this->getQueueName($queue));
     }
 
     /**
@@ -307,7 +297,6 @@ class KafkaQueue extends Queue implements QueueContract
             $producerConf->set('metadata.broker.list', $this->getConfig()['brokers']);
             $producerConf->set('partitioner', $this->getConfig()['producer_partitioner']);
             if ($this->getConfig()['sasl_enable'] === true) {
-                $producerConf->set('sasl.mechanism', $this->getConfig()['sasl_mechanism']);
                 $producerConf->set('sasl.mechanism', $this->getConfig()['sasl_mechanism']);
                 $producerConf->set('security.protocol', $this->getConfig()['sasl_security_protocol']);
                 $producerConf->set('sasl.username', $this->getConfig()['sasl_plain_username']);

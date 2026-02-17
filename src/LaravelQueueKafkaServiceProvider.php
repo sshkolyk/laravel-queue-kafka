@@ -29,12 +29,9 @@ class LaravelQueueKafkaServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../config/queue-kafka.php' => config_path('queue-kafka.php'),
         ], 'queue-kafka-config');
-        /** @var QueueManager $queue */
-        $queue = $this->app['queue'];
-        $connector = new KafkaConnector($this->app);
 
-        $queue->addConnector('kafka', function () use ($connector) {
-            return $connector;
+        $this->app['queue']->addConnector('kafka', function () {
+            return new KafkaConnector($this->app);
         });
     }
 
