@@ -40,6 +40,8 @@ class KafkaQueue extends Queue implements QueueContract
     {
         $queue = $this->getQueueName($queue);
         try {
+            $low = null;
+            $high = null;
             $kafkaConsumer = $this->getKafkaConsumer();
             $kafkaConsumer->queryWatermarkOffsets(
                 $queue,
@@ -258,11 +260,8 @@ class KafkaQueue extends Queue implements QueueContract
     protected function getConsumerConfig(): \RdKafka\Conf
     {
         if ($this->_consumer_conf === null) {
-            /** @var \RdKafka\TopicConf $topicConf */
-            $topicConf = $this->container->makeWith('queue.kafka.topic_conf', []);
-            $topicConf->set('auto.offset.reset', $this->getConfig()['auto_offset_reset']);
-
             $this->_consumer_conf = $this->container->makeWith('queue.kafka.conf', []);
+            $this->_consumer_conf->set('auto.offset.reset', $this->getConfig()['auto_offset_reset']);
             $this->_consumer_conf->set('bootstrap.servers', $this->getConfig()['brokers']);
             if ($this->getConfig()['sasl_enable'] === true) {
                 $this->_consumer_conf->set('sasl.mechanism', $this->getConfig()['sasl_mechanism']);
@@ -274,7 +273,6 @@ class KafkaQueue extends Queue implements QueueContract
             $this->_consumer_conf->set('group.id', $this->getConfig()['consumer_group_id']);
             $this->_consumer_conf->set('metadata.broker.list', $this->getConfig()['brokers']);
             $this->_consumer_conf->set('enable.auto.commit', $this->getConfig()['auto_commit']);
-            $this->_consumer_conf->setDefaultTopicConf($topicConf);
         }
 
         return $this->_consumer_conf;
@@ -318,9 +316,7 @@ class KafkaQueue extends Queue implements QueueContract
                 $producerConf->set('sasl.password', $this->getConfig()['sasl_plain_password']);
                 $producerConf->set('ssl.ca.location', $this->getConfig()['ssl_ca_location']);
             }
-            $topicConf = $this->container->makeWith('queue.kafka.topic_conf', []);
-            $topicConf->set('request.timeout.ms', $this->getConfig()['timeout_ms']);
-            $producerConf->setDefaultTopicConf($topicConf);
+            $producerConf->set('request.timeout.ms', $this->getConfig()['timeout_ms']);
             /** @var \RdKafka\Producer $producer */
             $this->_producer = $this->container->makeWith('queue.kafka.producer', ['conf' => $producerConf]);
         }

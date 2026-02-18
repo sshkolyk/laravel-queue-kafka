@@ -2,7 +2,6 @@
 
 namespace Rapide\LaravelQueueKafka;
 
-use Illuminate\Queue\QueueManager;
 use Illuminate\Support\ServiceProvider;
 use Rapide\LaravelQueueKafka\Queue\Connectors\KafkaConnector;
 
@@ -40,10 +39,6 @@ class LaravelQueueKafkaServiceProvider extends ServiceProvider
      */
     protected function registerDependencies(): void
     {
-        $this->app->bind('queue.kafka.topic_conf', function () {
-            return new \RdKafka\TopicConf;
-        });
-
         $this->app->bind('queue.kafka.producer', function ($app, $parameters) {
             return new \RdKafka\Producer($parameters['conf']);
         });

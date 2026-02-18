@@ -3,8 +3,10 @@
 namespace Rapide\LaravelQueueKafka\Tests;
 
 use Illuminate\Container\Container;
+use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\Facades\Log;
 use Mockery;
-use Orchestra\Testbench\TestCase;
+use PHPUnit\Framework\TestCase;
 use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
 use Rapide\LaravelQueueKafka\Queue\KafkaQueue;
@@ -52,6 +54,8 @@ class KafkaQueueTest extends TestCase
             ->with(Mockery::any())
             ->andReturn($this->consumerTopicMock);
 
+        Log::spy();
+
         $this->config = [
             'queue' => \Illuminate\Support\Str::random(),
             'sleep_on_error' => 2,
@@ -67,12 +71,18 @@ class KafkaQueueTest extends TestCase
 
         $this->queue = new KafkaQueue($this->config);
         $refProducer = new \ReflectionProperty($this->queue, '_producer');
-        $refProducer->setAccessible(true);
         $refProducer->setValue($this->queue, $this->producer);
         $refConsumer = new \ReflectionProperty($this->queue, '_consumer');
-        $refConsumer->setAccessible(true);
         $refConsumer->setValue($this->queue, $this->consumer);
         $this->queue->setContainer($this->container);
+    }
+
+    public function test_get_consumer(): void
+    {
+        $getConsumer = new ReflectionMethod($this->queue, 'getConsumer');
+        $consumer = $getConsumer->invoke($this->queue);
+
+        $this->assertEquals($consumer, $this->consumer);
     }
 
     public function test_size_when_internal_exception(): void
@@ -87,9 +97,6 @@ class KafkaQueueTest extends TestCase
         $this->container->shouldReceive('makeWith')
             ->with('queue.kafka.kafka_consumer', Mockery::any())
             ->andReturn($kafkaConsumer);
-        $this->container->shouldReceive('makeWith')
-            ->with('queue.kafka.topic_conf', Mockery::any())
-            ->andReturn(new \RdKafka\TopicConf);
         $this->container->shouldReceive('makeWith')
             ->with('queue.kafka.conf', Mockery::any())
             ->andReturn(new \RdKafka\Conf);
@@ -117,9 +124,6 @@ class KafkaQueueTest extends TestCase
         $this->container->shouldReceive('makeWith')
             ->with('queue.kafka.conf', Mockery::any())
             ->andReturn(new \RdKafka\Conf);
-        $this->container->shouldReceive('makeWith')
-            ->with('queue.kafka.topic_conf', Mockery::any())
-            ->andReturn(new \RdKafka\TopicConf);
         $topic->shouldReceive('produce')->andReturnUndefined();
         $this->producer->shouldReceive('newTopic')->andReturn($topic);
         $this->producer->shouldReceive('flush')->andReturn(RD_KAFKA_RESP_ERR_NO_ERROR);
@@ -141,9 +145,6 @@ class KafkaQueueTest extends TestCase
         $this->container->shouldReceive('makeWith')
             ->with('queue.kafka.conf', Mockery::any())
             ->andReturn(new \RdKafka\Conf);
-        $this->container->shouldReceive('makeWith')
-            ->with('queue.kafka.topic_conf', Mockery::any())
-            ->andReturn(new \RdKafka\TopicConf);
         $topic->shouldReceive('produce')->andReturnUndefined();
         $this->producer->shouldReceive('newTopic')->andReturn($topic);
         $this->producer
@@ -173,9 +174,6 @@ class KafkaQueueTest extends TestCase
         $this->container->shouldReceive('makeWith')
             ->with('queue.kafka.conf', Mockery::any())
             ->andReturn(new \RdKafka\Conf);
-        $this->container->shouldReceive('makeWith')
-            ->with('queue.kafka.topic_conf', Mockery::any())
-            ->andReturn(new \RdKafka\TopicConf);
         $topic->shouldReceive('produce')->andReturnUndefined();
         $this->producer->shouldReceive('newTopic')->andReturn($topic);
         $this->container->shouldReceive('makeWith')
@@ -200,9 +198,6 @@ class KafkaQueueTest extends TestCase
         $this->container->shouldReceive('makeWith')
             ->with('queue.kafka.conf', Mockery::any())
             ->andReturn(new \RdKafka\Conf);
-        $this->container->shouldReceive('makeWith')
-            ->with('queue.kafka.topic_conf', Mockery::any())
-            ->andReturn(new \RdKafka\TopicConf);
         $topic->shouldReceive('produce')
             ->twice()
             ->andThrowExceptions([new QueueKafkaException('dummy exception')]);
@@ -233,10 +228,8 @@ class KafkaQueueTest extends TestCase
         $message->payload = '{"payload":"payload"}';
 
         $refGetConsumerTopic = new ReflectionMethod($this->queue, 'getConsumerTopic');
-        $refGetConsumerTopic->setAccessible(true);
         $topic = $refGetConsumerTopic->invokeArgs($this->queue, [$queue]);
         $refConsumerTopics = new ReflectionProperty($this->queue, '_consumer_topics');
-        $refConsumerTopics->setAccessible(true);
         $this->assertEquals($topic, $refConsumerTopics->getValue($this->queue)[$queue]);
         $topic = Mockery::mock(\RdKafka\ConsumerTopic::class);
         $refConsumerTopics->setValue($this->queue, [$queue => $topic]);
@@ -257,10 +250,8 @@ class KafkaQueueTest extends TestCase
         $message->err = RD_KAFKA_RESP_ERR__PARTITION_EOF;
 
         $refGetConsumerTopic = new ReflectionMethod($this->queue, 'getConsumerTopic');
-        $refGetConsumerTopic->setAccessible(true);
         $topic = $refGetConsumerTopic->invokeArgs($this->queue, [$queue]);
         $refConsumerTopics = new ReflectionProperty($this->queue, '_consumer_topics');
-        $refConsumerTopics->setAccessible(true);
         $this->assertEquals($topic, $refConsumerTopics->getValue($this->queue)[$queue]);
         $topic = Mockery::mock(\RdKafka\ConsumerTopic::class);
         $refConsumerTopics->setValue($this->queue, [$queue => $topic]);
@@ -280,10 +271,8 @@ class KafkaQueueTest extends TestCase
         $message->err = RD_KAFKA_RESP_ERR__TIMED_OUT;
 
         $refGetConsumerTopic = new ReflectionMethod($this->queue, 'getConsumerTopic');
-        $refGetConsumerTopic->setAccessible(true);
         $topic = $refGetConsumerTopic->invokeArgs($this->queue, [$queue]);
         $refConsumerTopics = new ReflectionProperty($this->queue, '_consumer_topics');
-        $refConsumerTopics->setAccessible(true);
         $this->assertEquals($topic, $refConsumerTopics->getValue($this->queue)[$queue]);
         $topic = Mockery::mock(\RdKafka\ConsumerTopic::class);
         $refConsumerTopics->setValue($this->queue, [$queue => $topic]);
@@ -304,10 +293,8 @@ class KafkaQueueTest extends TestCase
         $message->shouldReceive('errstr');
 
         $refGetConsumerTopic = new ReflectionMethod($this->queue, 'getConsumerTopic');
-        $refGetConsumerTopic->setAccessible(true);
         $topic = $refGetConsumerTopic->invokeArgs($this->queue, [$queue]);
         $refConsumerTopics = new ReflectionProperty($this->queue, '_consumer_topics');
-        $refConsumerTopics->setAccessible(true);
         $this->assertEquals($topic, $refConsumerTopics->getValue($this->queue)[$queue]);
         $topic = Mockery::mock(\RdKafka\ConsumerTopic::class);
         $refConsumerTopics->setValue($this->queue, [$queue => $topic]);
@@ -320,12 +307,11 @@ class KafkaQueueTest extends TestCase
         $this->assertNull($job);
     }
 
-    public function test_get_consumer(): void
+    protected function tearDown(): void
     {
-        $getConsumer = new ReflectionMethod($this->queue, 'getConsumer');
-        $getConsumer->setAccessible(true);
-        $consumer = $getConsumer->invoke($this->queue);
-
-        $this->assertEquals($consumer, $this->consumer);
+        Facade::clearResolvedInstances();
+        Facade::setFacadeApplication(null);
+        Mockery::close();
+        parent::tearDown();
     }
 }
