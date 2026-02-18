@@ -27,6 +27,11 @@
       "Rapide\\LaravelQueueKafka\\": "src/"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "Rapide\\LaravelQueueKafka\\Tests\\": "tests/"
+    }
+  },
   "extra": {
     "laravel": {
       "providers": [
