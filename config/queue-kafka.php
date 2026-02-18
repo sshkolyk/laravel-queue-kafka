@@ -53,7 +53,7 @@ return [
     'sleep_on_error' => env('KAFKA_ERROR_SLEEP', 5),
 
     /*
-     * sasl authorization
+     * sasl authentication
      */
     'sasl_enable' => env('KAFKA_SASL_ENABLE', false),
     /**
