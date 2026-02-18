@@ -220,11 +220,11 @@ class KafkaQueueTest extends TestCase
         $this->queue->later($delay, $job);
     }
 
-    public function test_pop_no_error(): void
+    public function pop_job_with_message_error(int $messageError, bool $consumeStopTriggered = true): ?KafkaJob
     {
         $queue = $this->config['queue'];
         $message = Mockery::mock(\RdKafka\Message::class);
-        $message->err = RD_KAFKA_RESP_ERR_NO_ERROR;
+        $message->err = $messageError;
         $message->payload = '{"payload":"payload"}';
 
         $refGetConsumerTopic = new ReflectionMethod($this->queue, 'getConsumerTopic');
@@ -235,63 +235,54 @@ class KafkaQueueTest extends TestCase
         $refConsumerTopics->setValue($this->queue, [$queue => $topic]);
 
         $topic->shouldNotReceive('consumeStart'); // topic already created
-        $topic->shouldNotReceive('consumeStop');
+        if ($consumeStopTriggered) {
+            $topic->shouldReceive('consumeStop')->once();
+        } else {
+            $topic->shouldNotReceive('consumeStop');
+        }
         $topic->shouldReceive('consume')->once()->andReturn($message);
-        $job = $this->queue->pop($queue);
+        return $this->queue->pop($queue);
+    }
 
-        $this->assertInstanceOf(KafkaJob::class, $job);
+    public function test_pop_no_error(): void
+    {
+        $job = $this->pop_job_with_message_error(
+            messageError: RD_KAFKA_RESP_ERR_NO_ERROR,
+            consumeStopTriggered: false,
+        );
         $this->assertEquals('{"payload":"payload"}', json_encode($job->payload()));
     }
 
     public function test_pop_end_of_partition(): void
     {
-        $queue = $this->config['queue'];
-        $message = Mockery::mock(\RdKafka\Message::class);
-        $message->err = RD_KAFKA_RESP_ERR__PARTITION_EOF;
-
-        $refGetConsumerTopic = new ReflectionMethod($this->queue, 'getConsumerTopic');
-        $topic = $refGetConsumerTopic->invokeArgs($this->queue, [$queue]);
-        $refConsumerTopics = new ReflectionProperty($this->queue, '_consumer_topics');
-        $this->assertEquals($topic, $refConsumerTopics->getValue($this->queue)[$queue]);
-        $topic = Mockery::mock(\RdKafka\ConsumerTopic::class);
-        $refConsumerTopics->setValue($this->queue, [$queue => $topic]);
-
-        $topic->shouldNotReceive('consumeStart'); // topic already created
-        $topic->shouldReceive('consumeStop')->once();
-        $topic->shouldReceive('consume')->once()->andReturn($message);
-        $job = $this->queue->pop($queue);
-
+        $job = $this->pop_job_with_message_error(
+            messageError: RD_KAFKA_RESP_ERR__PARTITION_EOF,
+            consumeStopTriggered: true,
+        );
         $this->assertNull($job);
     }
 
     public function test_pop_timed_out(): void
     {
-        $queue = $this->config['queue'];
-        $message = Mockery::mock(\RdKafka\Message::class);
-        $message->err = RD_KAFKA_RESP_ERR__TIMED_OUT;
+        $job = $this->pop_job_with_message_error(
+            messageError: RD_KAFKA_RESP_ERR__TIMED_OUT,
+            consumeStopTriggered: true,
+        );
+        $this->assertNull($job);
+    }
 
-        $refGetConsumerTopic = new ReflectionMethod($this->queue, 'getConsumerTopic');
-        $topic = $refGetConsumerTopic->invokeArgs($this->queue, [$queue]);
-        $refConsumerTopics = new ReflectionProperty($this->queue, '_consumer_topics');
-        $this->assertEquals($topic, $refConsumerTopics->getValue($this->queue)[$queue]);
-        $topic = Mockery::mock(\RdKafka\ConsumerTopic::class);
-        $refConsumerTopics->setValue($this->queue, [$queue => $topic]);
-
-        $topic->shouldNotReceive('consumeStart'); // topic already created
-        $topic->shouldReceive('consumeStop')->once();
-        $topic->shouldReceive('consume')->once()->andReturn($message);
-        $job = $this->queue->pop($queue);
-
+    public function test_pop_all_brokers_down(): void
+    {
+        $job = $this->pop_job_with_message_error(
+            messageError: RD_KAFKA_RESP_ERR__ALL_BROKERS_DOWN,
+            consumeStopTriggered: true,
+        );
         $this->assertNull($job);
     }
 
     public function test_pop_not_catched_exception(): void
     {
         $queue = $this->config['queue'];
-        $message = Mockery::mock(\RdKafka\Message::class);
-        $message->err = RD_KAFKA_RESP_ERR__ALL_BROKERS_DOWN;
-        $message->shouldReceive('errstr');
-
         $refGetConsumerTopic = new ReflectionMethod($this->queue, 'getConsumerTopic');
         $topic = $refGetConsumerTopic->invokeArgs($this->queue, [$queue]);
         $refConsumerTopics = new ReflectionProperty($this->queue, '_consumer_topics');
@@ -301,7 +292,9 @@ class KafkaQueueTest extends TestCase
 
         $topic->shouldNotReceive('consumeStart'); // topic already created
         $topic->shouldReceive('consumeStop')->once();
-        $topic->shouldReceive('consume')->once()->andReturn($message);
+        $topic->shouldReceive('consume')
+            ->once()
+            ->andThrowExceptions([new QueueKafkaException('dummy exception')]);
         $job = $this->queue->pop($queue);
 
         $this->assertNull($job);

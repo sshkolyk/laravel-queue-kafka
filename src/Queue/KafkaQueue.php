@@ -176,14 +176,26 @@ class KafkaQueue extends Queue implements QueueContract
 
                     return null;
                 default:
-                    $this->stopConsumeTopic($queue);
+                    try {
+                        $this->stopConsumeTopic($queue);
+                    } catch (\Throwable $e) {
+                    }
+
+                    $this->_consumer = null;
+                    $this->_consumer_topics = [];
                     $err_str = $message->errstr() ?: $message->err;
                     $this->reportConnectionError($err_str, new QueueKafkaException($err_str));
 
                     return null;
             }
         } catch (\Throwable $exception) {
-            $this->stopConsumeTopic($queue);
+            try {
+                $this->stopConsumeTopic($queue);
+            } catch (\Throwable $e) {
+            }
+
+            $this->_consumer = null;
+            $this->_consumer_topics = [];
             $message = 'Could not pop from the queue';
             $this->reportConnectionError(
                 $message,
