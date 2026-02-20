@@ -1,5 +1,5 @@
 {
-  "name": "sshkolyk/laravel-queue-kafka",
+  "name": "rapide/laravel-queue-kafka",
   "description": "Kafka driver for Laravel Queue",
   "license": "MIT",
   "type": "library",
