@@ -38,15 +38,6 @@ Kafka Queue driver for Laravel 12+ and rdkafka 2.x
        librdkafka version (build) => 2.12.1.255
  
 4. Install this package via composer using:
-    Add to composer.json
-    ```json
-       "repositories": [
-          {
-            "type": "vcs",
-            "url": "https://github.com/sshkolyk/laravel-queue-kafka"
-          }
-       ],
-   ```
     ```bash  
 	    composer require sshkolyk/laravel-queue-kafka:dev-master
     ```
