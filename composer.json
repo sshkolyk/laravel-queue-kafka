@@ -3,11 +3,14 @@
   "description": "Kafka driver for Laravel Queue",
   "license": "MIT",
   "type": "library",
-  "version": "2.0",
+  "keywords": ["laravel", "kafka", "queue", "rdkafka"],
   "authors": [
     {
       "name": "Peter Mein",
       "email": "petermein@gmail.com"
+    },
+    {
+      "name": "Serhii Shkolyk"
     }
   ],
   "require": {
@@ -39,7 +42,5 @@
         "Rapide\\LaravelQueueKafka\\LaravelQueueKafkaServiceProvider"
       ]
     }
-  },
-  "minimum-stability": "dev",
-  "prefer-stable": true
+  }
 }
