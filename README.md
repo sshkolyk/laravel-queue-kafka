@@ -1,9 +1,6 @@
 Kafka Queue driver for Laravel 12+ and rdkafka 2.x
 ======================
 [![Latest Stable Version](https://poser.pugx.org/rapide/laravel-queue-kafka/v/stable?format=flat-square)](https://packagist.org/packages/rapide/laravel-queue-kafka)
-[![Build Status](https://travis-ci.org/rapideinternet/laravel-queue-kafka.svg?branch=master)](https://travis-ci.org/rapideinternet/laravel-queue-kafka)
-[![Total Downloads](https://poser.pugx.org/rapide/laravel-queue-kafka/downloads?format=flat-square)](https://packagist.org/packages/rapide/laravel-queue-kafka)
-[![StyleCI](https://styleci.io/repos/99249783/shield)](https://styleci.io/repos/99249783)
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
 
 #### Installation
@@ -139,8 +136,7 @@ vendor/bin/phpunit
 
 #### Acknowledgement 
 
-This library is inspired by [laravel-queue-rabbitmq](https://github.com/vyuldashev/laravel-queue-rabbitmq) by vyuldashev.
-And the Kafka implementations by [Superbalist](https://github.com/Superbalist/php-pubsub-kafka) be sure to check those out. 
+This library is based on [laravel-queue-kafka](https://github.com/rapideinternet/laravel-queue-kafka) by rapideinternet. 
 
 #### Contribution
 
