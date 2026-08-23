@@ -55,7 +55,7 @@ return [
     /*
      * sasl authentication
      */
-    'sasl_enable' => env('KAFKA_SASL_ENABLE', false),
+    'sasl_enable' => (bool) env('KAFKA_SASL_ENABLE', false),
     /**
      * One of SSL, PLAINTEXT, SASL_PLAINTEXT, SASL_SSL
      */
