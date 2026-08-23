@@ -41,29 +41,25 @@ Kafka Queue driver for Laravel 12+ and rdkafka 2.x
     ```bash  
 	    composer require sshkolyk/laravel-queue-kafka
     ```
-5. If you are using Lumen, put this in `bootstrap/app.php`:
-    ```php
-        $app->register(Rapide\LaravelQueueKafka\LumenQueueKafkaServiceProvider::class);
-    ```
-6. You can also publish queue-kafka.php config:
+5. You can also publish queue-kafka.php config:
     ```bash
         php artisan vendor:publish --tag queue-kafka-config
     ```
-7. Add these properties to `.env` with proper values:
+6. Add these properties to `.env` with proper values:
      
 		QUEUE_DRIVER=kafka
      
-8. If you want to run a worker for a specific consumer group
+7. If you want to run a worker for a specific consumer group
     ```bash
         export KAFKA_CONSUMER_GROUP_ID="group2" && php artisan queue:work --sleep=3
     ```
-9. For run parallel in N partitions invoke N workers with:
+8. For run parallel in N partitions invoke N workers with:
     ```bash
         KAFKA_CONSUMER_PARTITION=0 php artisan queue:work
         KAFKA_CONSUMER_PARTITION=1 php artisan queue:work
         ...
     ```
-10. <span style="color: red">--tries not working</span> with this driver. Make sure you catch all exceptions and enqueue again in your job if needed in your job<br>
+9. <span style="color: red">--tries not working</span> with this driver. Make sure you catch all exceptions and enqueue again in your job if needed in your job<br>
 Queue::later() also not working
 
 #### Usage
