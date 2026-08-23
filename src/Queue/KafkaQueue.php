@@ -284,7 +284,11 @@ class KafkaQueue extends Queue implements QueueContract
             }
             $this->_consumer_conf->set('group.id', $this->getConfig()['consumer_group_id']);
             $this->_consumer_conf->set('metadata.broker.list', $this->getConfig()['brokers']);
-            $this->_consumer_conf->set('enable.auto.commit', $this->getConfig()['auto_commit']);
+            $autoCommit = $this->getConfig()['auto_commit'];
+            $this->_consumer_conf->set(
+                'enable.auto.commit',
+                in_array($autoCommit, [true, 'true'], true) ? 'true' : 'false'
+            );
         }
 
         return $this->_consumer_conf;

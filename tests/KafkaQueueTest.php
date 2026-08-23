@@ -6,6 +6,7 @@ use Illuminate\Container\Container;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\Facades\Log;
 use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
@@ -83,6 +84,38 @@ class KafkaQueueTest extends TestCase
         $consumer = $getConsumer->invoke($this->queue);
 
         $this->assertEquals($consumer, $this->consumer);
+    }
+
+    #[DataProvider('autoCommitValues')]
+    public function test_auto_commit_is_normalized_to_a_valid_conf_string(mixed $autoCommit, string $expected): void
+    {
+        // KAFKA_AUTO_COMMIT=false in .env makes Laravel's env() cast the value to a
+        // native PHP bool, but RdKafka\Conf::set() requires the literal string values
+        // "true"/"false" — and a naive truthy check would mistake the string "false"
+        // (or garbage) for true, since any non-empty string is truthy in PHP.
+        $this->container->shouldReceive('makeWith')
+            ->with('queue.kafka.conf', Mockery::any())
+            ->andReturn(new \RdKafka\Conf);
+
+        $this->queue->setConfig(array_merge($this->config, ['auto_commit' => $autoCommit]));
+
+        $getConsumerConfig = new ReflectionMethod($this->queue, 'getConsumerConfig');
+        $conf = $getConsumerConfig->invoke($this->queue);
+
+        $this->assertSame($expected, $conf->dump()['enable.auto.commit']);
+    }
+
+    public static function autoCommitValues(): array
+    {
+        return [
+            'bool true' => [true, 'true'],
+            'bool false' => [false, 'false'],
+            "string 'true'" => ['true', 'true'],
+            "string 'false'" => ['false', 'false'],
+            'empty string' => ['', 'false'],
+            'null' => [null, 'false'],
+            'garbage string' => ['fsadfas', 'false'],
+        ];
     }
 
     public function test_size_when_internal_exception(): void
