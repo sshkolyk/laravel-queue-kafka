@@ -1,0 +1,21 @@
+#!/bin/sh
+# Auto-fixes code style with Pint on staged PHP files and re-stages the result.
+# Installed via: git config core.hooksPath .githooks
+
+staged_php=$(git diff --cached --name-only --diff-filter=ACM -- '*.php')
+
+if [ -z "$staged_php" ]; then
+    exit 0
+fi
+
+./vendor/bin/pint $staged_php
+pint_status=$?
+
+if [ $pint_status -ne 0 ]; then
+    echo "Pint failed, aborting commit." >&2
+    exit $pint_status
+fi
+
+echo "$staged_php" | xargs git add
+
+exit 0
