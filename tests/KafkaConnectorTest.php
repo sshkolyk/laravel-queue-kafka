@@ -1,4 +1,5 @@
 <?php
+
 namespace Rapide\LaravelQueueKafka\Tests;
 
 use Mockery;

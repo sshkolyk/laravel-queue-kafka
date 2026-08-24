@@ -2,8 +2,6 @@
 
 namespace Rapide\LaravelQueueKafka\Tests\Wrappers;
 
-use RdKafka\KafkaConsumer;
-
 class KafkaConsumerWrapper
 {
     public function __construct(private \RdKafka\KafkaConsumer $consumer) {}

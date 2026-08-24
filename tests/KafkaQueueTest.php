@@ -274,6 +274,7 @@ class KafkaQueueTest extends TestCase
             $topic->shouldNotReceive('consumeStop');
         }
         $topic->shouldReceive('consume')->once()->andReturn($message);
+
         return $this->queue->pop($queue);
     }
 

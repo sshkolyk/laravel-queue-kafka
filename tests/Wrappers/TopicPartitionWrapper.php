@@ -2,8 +2,6 @@
 
 namespace Rapide\LaravelQueueKafka\Tests\Wrappers;
 
-use RdKafka\TopicPartition;
-
 class TopicPartitionWrapper
 {
     private int $offset = -1001;
@@ -37,6 +35,7 @@ class TopicPartitionWrapper
     {
         $tp = new \RdKafka\TopicPartition($this->topic, $this->partition);
         $tp->setOffset($this->offset);
+
         return $tp;
     }
 }
