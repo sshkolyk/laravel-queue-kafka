@@ -147,7 +147,9 @@ class KafkaQueue extends Queue implements QueueContract
             $topic = $this->getConsumerTopic($queue);
             $message = $topic->consume($this->getConfig()['consumer_partition'], $this->getConfig()['timeout_ms']);
             if ($message === null) {
-                $this->stopConsumeTopic($queue);
+                if ($this->getConfig()['stop_consume_on_empty']) {
+                    $this->stopConsumeTopic($queue);
+                }
 
                 return null;
             }

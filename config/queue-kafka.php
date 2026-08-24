@@ -90,4 +90,6 @@ return [
 
     /** All operations timeout in ms */
     'timeout_ms' => env('KAFKA_TIMEOUT_MS', 1000),
+
+    'stop_consume_on_empty' => (bool) env('KAFKA_STOP_CONSUME_ON_EMPTY', false),
 ];

@@ -75,6 +75,8 @@ Once you completed the configuration you can use Laravel Queue API. If you used 
 
 `KAFKA_PRODUCER_PARTITIONER` - Producer partitioner algorithm, default = 'murmur2_random'
 
+`KAFKA_STOP_CONSUME_ON_EMPTY` - When queue empty, destoy the consumer, default = false
+
 ###### Can be:
 1. random - random distribution, consistent - CRC32 hash of key (Empty and NULL keys are mapped to single partition),
 2. consistent_random - CRC32 hash of key (Empty and NULL keys are randomly partitioned),
