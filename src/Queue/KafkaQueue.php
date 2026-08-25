@@ -265,7 +265,8 @@ class KafkaQueue extends Queue implements QueueContract
      */
     protected function reportConnectionError(string $action, \Throwable $e): void
     {
-        Log::error('Kafka error while attempting '.$action.': '.$e->getMessage());
+        $cause = $e->getPrevious()?->getMessage() ?? $e->getMessage();
+        Log::error('Kafka error while attempting '.$action.': '.$cause);
 
         // If it's set to false, throw an error rather than waiting
         if (! $this->getConfig()['sleep_on_error']) {
