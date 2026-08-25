@@ -69,6 +69,7 @@ class KafkaQueueTest extends TestCase
             'auto_offset_reset' => 'earliest',
             'consumer_group_id' => 'laravel_queue',
             'auto_commit' => 'true',
+            'stop_consume_on_empty' => false,
         ];
 
         $this->queue = new KafkaQueue($this->config);
@@ -313,6 +314,16 @@ class KafkaQueueTest extends TestCase
 
     public function test_pop_end_of_partition(): void
     {
+        $job = $this->pop_job_with_message_error(
+            messageError: RD_KAFKA_RESP_ERR__PARTITION_EOF,
+            consumeStopTriggered: false,
+        );
+        $this->assertNull($job);
+    }
+
+    public function test_pop_end_of_partition_stops_consumer_when_configured(): void
+    {
+        $this->queue->setConfig(array_merge($this->config, ['stop_consume_on_empty' => true]));
         $job = $this->pop_job_with_message_error(
             messageError: RD_KAFKA_RESP_ERR__PARTITION_EOF,
             consumeStopTriggered: true,

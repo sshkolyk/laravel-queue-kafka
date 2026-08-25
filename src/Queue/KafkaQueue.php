@@ -173,7 +173,9 @@ class KafkaQueue extends Queue implements QueueContract
                         topic: $topic,
                     );
                 case RD_KAFKA_RESP_ERR__PARTITION_EOF:
-                    $this->stopConsumeTopic($queue);
+                    if ($this->getConfig()['stop_consume_on_empty']) {
+                        $this->stopConsumeTopic($queue);
+                    }
 
                     return null;
                 case RD_KAFKA_RESP_ERR__TIMED_OUT:
