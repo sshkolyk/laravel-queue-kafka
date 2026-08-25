@@ -12,6 +12,7 @@ use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
 use Rapide\LaravelQueueKafka\Queue\KafkaQueue;
 use Rapide\LaravelQueueKafka\Tests\Jobs\TestJob;
+use Rapide\LaravelQueueKafka\Tests\Jobs\TestJobWithKafkaKey;
 use Rapide\LaravelQueueKafka\Tests\Wrappers\KafkaConsumerWrapper;
 use Rapide\LaravelQueueKafka\Tests\Wrappers\TopicPartitionWrapper;
 use ReflectionMethod;
@@ -165,6 +166,29 @@ class KafkaQueueTest extends TestCase
         $key = $this->queue->push($job, $data);
         $this->assertNotNull($key);
         $this->assertEquals(26, strlen($key));
+    }
+
+    public function test_push_uses_job_kafka_key_when_provided(): void
+    {
+        $job = new TestJobWithKafkaKey('order-42');
+        $data = [];
+
+        $topic = Mockery::mock(\RdKafka\ProducerTopic::class);
+        $this->container->shouldReceive('makeWith')
+            ->with('queue.kafka.producer', Mockery::any())
+            ->andReturn($this->producer);
+        $this->container->shouldReceive('makeWith')
+            ->with('queue.kafka.conf', Mockery::any())
+            ->andReturn(new \RdKafka\Conf);
+        $topic->shouldReceive('produce')
+            ->once()
+            ->with(RD_KAFKA_PARTITION_UA, 0, Mockery::any(), 'order-42')
+            ->andReturnUndefined();
+        $this->producer->shouldReceive('newTopic')->andReturn($topic);
+        $this->producer->shouldReceive('flush')->andReturn(RD_KAFKA_RESP_ERR_NO_ERROR);
+
+        $key = $this->queue->push($job, $data);
+        $this->assertSame('order-42', $key);
     }
 
     public function test_make_2nd_try_when_push_error(): void

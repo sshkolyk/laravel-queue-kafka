@@ -54,6 +54,8 @@ class KafkaJob extends Job implements JobContract
      */
     public function getJobId(): string
     {
-        return $this->message->key;
+        $payload = json_decode($this->message->payload, true) ?? [];
+
+        return (string) ($payload['uuid'] ?? $this->message->key);
     }
 }

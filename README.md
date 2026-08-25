@@ -66,6 +66,26 @@ Queue::later() also not working
 
 Once you completed the configuration you can use Laravel Queue API. If you used other queue drivers you do not need to change anything else. If you do not know how to use Queue API, please refer to the official Laravel documentation: http://laravel.com/docs/queues
 
+###### Ordering jobs by key
+
+By default each job is produced with a random key, so Kafka's partitioner (see `KAFKA_PRODUCER_PARTITIONER`) spreads jobs across partitions randomly. To guarantee that related jobs are processed in order, they must land on the same partition. Implement `Rapide\LaravelQueueKafka\Contracts\HasKafkaKey` on a job to control its producer key:
+
+```php
+use Rapide\LaravelQueueKafka\Contracts\HasKafkaKey;
+
+class ProcessOrder implements ShouldQueue, HasKafkaKey
+{
+    public function __construct(private int $orderId) {}
+
+    public function kafkaKey(): string
+    {
+        return (string) $this->orderId;
+    }
+}
+```
+
+Jobs sharing the same key are routed to the same partition. Combined with running one worker per partition (see "For run parallel in N partitions" above), this preserves processing order for that key.
+
 #### Supported environment variables
 `KAFKA_QUEUE` - default queue(topic) name
 

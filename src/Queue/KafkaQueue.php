@@ -7,6 +7,7 @@ use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\Queue;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Rapide\LaravelQueueKafka\Contracts\HasKafkaKey;
 use Rapide\LaravelQueueKafka\Exceptions\QueueKafkaException;
 use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
 use RdKafka\Consumer;
@@ -77,7 +78,12 @@ class KafkaQueue extends Queue implements QueueContract
      */
     public function push($job, $data = '', $queue = null): ?string
     {
-        return $this->pushRaw($this->createPayload($job, $queue, $data), $queue, []);
+        $options = [];
+        if ($job instanceof HasKafkaKey) {
+            $options['key'] = $job->kafkaKey();
+        }
+
+        return $this->pushRaw($this->createPayload($job, $queue, $data), $queue, $options);
     }
 
     /**
@@ -107,7 +113,9 @@ class KafkaQueue extends Queue implements QueueContract
     protected function tryPushRaw($payload, $queue = null, array $options = []): ?string
     {
         $topic = $this->getProducerTopic($queue);
-        $key = Str::upper((string) Str::ulid());
+        $key = isset($options['key']) && $options['key'] !== ''
+            ? (string) $options['key']
+            : Str::upper((string) Str::ulid());
         $topic->produce(RD_KAFKA_PARTITION_UA, 0, $payload, $key);
         $result = $this->getProducer()->flush($this->getConfig()['timeout_ms']);
         if ($result !== RD_KAFKA_RESP_ERR_NO_ERROR) {
