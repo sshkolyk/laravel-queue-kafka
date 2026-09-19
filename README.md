@@ -1,7 +1,9 @@
-Kafka Queue driver for Laravel 12+ and rdkafka 2.x
+Kafka Queue driver for Laravel 10.x–13.x and rdkafka 2.x
 ======================
 [![Latest Stable Version](https://poser.pugx.org/rapide/laravel-queue-kafka/v/stable?format=flat-square)](https://packagist.org/packages/rapide/laravel-queue-kafka)
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
+
+Tested on Laravel 12.x and 13.x.
 
 #### Installation
 
