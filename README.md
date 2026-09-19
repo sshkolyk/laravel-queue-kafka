@@ -1,81 +1,114 @@
-Kafka Queue driver for Laravel 10.x–13.x and rdkafka 2.x
-======================
-[![Latest Stable Version](https://poser.pugx.org/rapide/laravel-queue-kafka/v/stable?format=flat-square)](https://packagist.org/packages/rapide/laravel-queue-kafka)
+# Kafka Queue Driver for Laravel 10–13
+
+[![Latest Stable Version](https://img.shields.io/packagist/v/sshkolyk/laravel-queue-kafka.svg?style=flat-square)](https://packagist.org/packages/sshkolyk/laravel-queue-kafka)
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
 
-#### Installation
+A Laravel queue driver backed by Apache Kafka, with support for Laravel 10–13, php-rdkafka 6.x, and librdkafka 2.x.
 
-1. Install [librdkafka c library](https://github.com/edenhill/librdkafka)
+## Improvements over upstream
 
-    ```bash
-    $ cd /tmp
-    $ mkdir librdkafka
-    $ cd librdkafka
-    $ git clone https://github.com/edenhill/librdkafka.git .
-    $ ./configure
-    $ make
-    $ make install
-    ```
-2. Install the [php-rdkafka](https://github.com/arnaud-lb/php-rdkafka) PECL extension
+- Supports PHP 8.2+ and Laravel 10–13.
+- Jobs can define their Kafka producer key through `HasKafkaKey` instead of relying on payload correlation IDs.
+- Parallel workers can consume explicitly configured Kafka partitions instead of being limited to partition 0.
+- Consumer partitions, producer partitioning, auto-commit, timeouts, and SASL protocol and mechanism are configurable.
+- Offset reset is configurable and defaults to `earliest`, preventing new consumer groups from skipping existing jobs as upstream's hard-coded `largest` policy did.
+- SASL/SSL authentication works for both producers and consumers, including PLAIN and SCRAM mechanisms.
+- Queue size is reported as consumer lag using partition watermarks and committed offsets.
+- Producer writes are flushed before returning and retried once with a fresh producer after a failure.
+- Kafka clients and queue connectors are created lazily to avoid stale shared instances in long-lived workers such as Laravel Octane.
+- Jobs use Laravel's standard execution path without database-specific deadlock detection that slowed Kafka consumers.
+- Expanded automated tests cover queue lag, producer retries, auto-commit normalization, partition EOF handling, custom keys, and job IDs.
 
-    ```bash
-    $ pecl install rdkafka
-    ```
-    
-3. a. Add the following to your php.ini file to enable the php-rdkafka extension
-    `extension=rdkafka.so`
-    
-   b. Check if rdkafka is installed  
-   __Note:__ If you want to run this on php-fpm restart your php-fpm first.
-   ```bash    
-       php -i | grep rdkafka
-   ```
-   Your output should look something like this
-   
-       rdkafka
-       rdkafka support => enabled
-       librdkafka version (runtime) => 2.12.1
-       librdkafka version (build) => 2.12.1.255
- 
-4. Install this package via composer using:
-    ```bash  
-	    composer require sshkolyk/laravel-queue-kafka
-    ```
-5. You can also publish queue-kafka.php config:
-    ```bash
-        php artisan vendor:publish --tag queue-kafka-config
-    ```
-6. Add these properties to `.env` with proper values:
-     
-		QUEUE_DRIVER=kafka
-     
-7. If you want to run a worker for a specific consumer group
-    ```bash
-        export KAFKA_CONSUMER_GROUP_ID="group2" && php artisan queue:work --sleep=3
-    ```
-8. For run parallel in N partitions invoke N workers with:
-    ```bash
-        KAFKA_CONSUMER_PARTITION=0 php artisan queue:work
-        KAFKA_CONSUMER_PARTITION=1 php artisan queue:work
-        ...
-    ```
-9. <span style="color: red">--tries not working</span> with this driver. Make sure you catch all exceptions and enqueue again in your job if needed in your job<br>
-Queue::later() also not working
+## Limitations
 
-#### Usage
+- Delayed dispatch through `Queue::later()` is not supported.
+- Automatic job retries and `queue:work --tries` are not supported; failed jobs must be handled and requeued by the application.
 
-Once you completed the configuration you can use Laravel Queue API. If you used other queue drivers you do not need to change anything else. If you do not know how to use Queue API, please refer to the official Laravel documentation: http://laravel.com/docs/queues
+## Installation
 
-###### Ordering jobs by key
+This package requires PHP 8.2+, librdkafka 2.x, and the php-rdkafka 6.x extension.
 
-By default each job is produced with a random key, so Kafka's partitioner (see `KAFKA_PRODUCER_PARTITIONER`) spreads jobs across partitions randomly. To guarantee that related jobs are processed in order, they must land on the same partition. Implement `Rapide\LaravelQueueKafka\Contracts\HasKafkaKey` on a job to control its producer key:
+Install librdkafka using your operating system's package manager instead of building the development branch from source:
+
+```bash
+# Debian or Ubuntu
+sudo apt update
+sudo apt install librdkafka-dev
+
+# Fedora, RHEL, or CentOS
+sudo dnf install librdkafka-devel
+
+# Alpine Linux
+apk add --no-cache librdkafka-dev
+
+# macOS
+brew install librdkafka
+```
+
+If your distribution provides an older librdkafka release, use the packages from the [official Confluent repositories](https://github.com/confluentinc/librdkafka#installing-prebuilt-packages).
+
+Install and enable the [php-rdkafka](https://github.com/arnaud-lb/php-rdkafka) extension:
+
+```bash
+pecl install rdkafka
+```
+
+Add `extension=rdkafka.so` to `php.ini` if PECL does not enable it automatically, then verify the installation:
+
+```bash
+php --ri rdkafka
+```
+
+Install the Laravel package and optionally publish its configuration:
+
+```bash
+composer require sshkolyk/laravel-queue-kafka
+php artisan vendor:publish --tag=queue-kafka-config
+```
+
+Configure the queue connection and Kafka brokers in `.env`:
+
+```dotenv
+QUEUE_CONNECTION=kafka
+KAFKA_BROKERS=localhost:9092
+```
+
+## Running workers
+
+Run a worker using the configured consumer group:
+
+```bash
+php artisan queue:work kafka
+```
+
+Override the consumer group for a worker when needed:
+
+```bash
+KAFKA_CONSUMER_GROUP_ID=group2 php artisan queue:work kafka --sleep=3
+```
+
+For parallel processing, run one worker for each Kafka partition:
+
+```bash
+KAFKA_CONSUMER_PARTITION=0 php artisan queue:work kafka
+KAFKA_CONSUMER_PARTITION=1 php artisan queue:work kafka
+```
+
+## Usage
+
+Use Laravel's standard queue API to dispatch and process jobs. Kafka-specific behavior is configured through the connection settings documented below. See the [Laravel queue documentation](https://laravel.com/docs/queues) for general usage.
+
+### Ordering jobs by key
+
+Kafka guarantees ordering only within a partition. By default, each job receives a random producer key and may be routed to any partition. To keep related jobs on the same partition, implement `Rapide\LaravelQueueKafka\Contracts\HasKafkaKey` on the job:
 
 ```php
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Rapide\LaravelQueueKafka\Contracts\HasKafkaKey;
 
 class ProcessOrder implements ShouldQueue, HasKafkaKey
 {
-    public function __construct(private int $orderId) {}
+    public function __construct(private readonly int $orderId) {}
 
     public function kafkaKey(): string
     {
@@ -84,73 +117,65 @@ class ProcessOrder implements ShouldQueue, HasKafkaKey
 }
 ```
 
-Jobs sharing the same key are routed to the same partition. Combined with running one worker per partition (see "For run parallel in N partitions" above), this preserves processing order for that key.
+With the default `murmur2_random` partitioner, jobs with the same non-empty key are routed to the same partition. Run exactly one worker for each partition, as shown in [Running workers](#running-workers), to preserve processing order for that key. The `random` partitioner does not provide this guarantee.
 
-#### Supported environment variables
-`KAFKA_QUEUE` - default queue(topic) name
+## Configuration
 
-`KAFKA_CONSUMER_GROUP_ID` - kafka consumer group, default = 'laravel_queue'
+| Variable | Default | Description |
+| --- | --- | --- |
+| `KAFKA_QUEUE` | `default` | Kafka topic used as the default Laravel queue. |
+| `KAFKA_CONSUMER_GROUP_ID` | `laravel_queue` | Kafka consumer group ID. |
+| `KAFKA_CONSUMER_PARTITION` | `0` | Partition consumed by this worker. |
+| `KAFKA_PRODUCER_PARTITIONER` | `murmur2_random` | Partitioner used when producing jobs. |
+| `KAFKA_STOP_CONSUME_ON_EMPTY` | `false` | Stop the low-level partition consumer after an empty result or partition EOF. |
+| `KAFKA_BROKERS` | `localhost:9092` | Comma-separated bootstrap broker addresses. |
+| `KAFKA_ERROR_SLEEP` | `5` | Seconds to wait after a connection error; set to `false` to throw immediately. |
+| `KAFKA_SASL_ENABLE` | `false` | Enable SASL authentication for producers and consumers. |
+| `KAFKA_SASL_SECURITY_PROTOCOL` | `SASL_SSL` | Security protocol: `SSL`, `PLAINTEXT`, `SASL_PLAINTEXT`, or `SASL_SSL`. |
+| `KAFKA_SASL_MECHANISM` | `SCRAM-SHA-512` | SASL mechanism: `PLAIN`, `SCRAM-SHA-256`, or `SCRAM-SHA-512`. |
+| `KAFKA_SSL_CA_LOCATION` | empty | Path to the CA certificate file or directory used to verify brokers. |
+| `KAFKA_SASL_PLAIN_USERNAME` | empty | SASL username. |
+| `KAFKA_SASL_PLAIN_PASSWORD` | empty | SASL password. |
+| `KAFKA_AUTO_COMMIT` | `true` | Enable librdkafka's periodic automatic offset commits. |
+| `KAFKA_AUTO_RESET` | `earliest` | Offset reset policy when no valid committed offset exists. |
+| `KAFKA_TIMEOUT_MS` | `1000` | Timeout in milliseconds for Kafka operations. |
 
-`KAFKA_CONSUMER_PARTITION` - kafka partition for consume, default = 0
+### Producer partitioners
 
-`KAFKA_PRODUCER_PARTITIONER` - Producer partitioner algorithm, default = 'murmur2_random'
+- `random`: distribute jobs randomly.
+- `consistent`: use a CRC32 hash; null keys use a single partition.
+- `consistent_random`: use a CRC32 hash; null keys are distributed randomly.
+- `murmur2`: use the Java-compatible Murmur2 hash; null keys use a single partition.
+- `murmur2_random`: use the Java-compatible Murmur2 hash; null keys are distributed randomly.
+- `fnv1a`: use the FNV-1a hash; null keys use a single partition.
+- `fnv1a_random`: use the FNV-1a hash; null keys are distributed randomly.
 
-`KAFKA_STOP_CONSUME_ON_EMPTY` - When queue empty, destoy the consumer, default = false
+### Offset reset policies
 
-###### Can be:
-1. random - random distribution, consistent - CRC32 hash of key (Empty and NULL keys are mapped to single partition),
-2. consistent_random - CRC32 hash of key (Empty and NULL keys are randomly partitioned),
-3. murmur2 - Java Producer compatible Murmur2 hash of key (NULL keys are mapped to single partition),
-4. murmur2_random - Java Producer compatible Murmur2 hash of key (NULL keys are randomly partitioned.
-        This is functionally equivalent to the default partitioner in the Java Producer.),
-5. fnv1a - FNV-1a hash of key (NULL keys are mapped to single partition),
-6. fnv1a_random - FNV-1a hash of key (NULL keys are randomly partitioned).
+- `earliest`: start at the earliest available offset.
+- `latest`: start after the newest available offset. Existing jobs are skipped when no committed offset exists.
+- `none`: fail when no valid committed offset exists.
 
-`KAFKA_BROKERS` - Comma-separated list of Kafka broker addresses the client will initially connect to, default = localhost:9092
+## Compatibility
 
-`KAFKA_ERROR_SLEEP` - Determine the number of seconds to sleep if there's an error communicating with kafka or false|null, default = 5
+| PHP | Laravel | php-rdkafka | librdkafka |
+| --- | --- | --- | --- |
+| 8.2+ | 10–13 | 6.x | 2.x |
 
-`KAFKA_SASL_ENABLE` - Enable SASL authentication. if false other SASL config does not matter, default = false
+Laravel 12.x and 13.x have been tested directly.
 
-`KAFKA_SASL_SECURITY_PROTOCOL` - One of SSL, PLAINTEXT, SASL_PLAINTEXT, SASL_SSL, default = SASL_SSL
-
-`KAFKA_SASL_MECHANISM` - One of PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, default = SCRAM-SHA-512
-
-`KAFKA_SSL_CA_LOCATION` - File or directory path to CA certificate(s) for verifying the broker's key, default empty
-
-`KAFKA_SASL_PLAIN_USERNAME` - no default
-
-`KAFKA_SASL_PLAIN_PASSWORD` - no default
-
-`KAFKA_AUTO_COMMIT` - The property enable.auto.commit is set to true by default, and Kafka commits the current offset back to the Kafka broker at a specified interval, default = true. <span style="color:red">In most cases you don't need to touch this</span>
-
-`KAFKA_AUTO_RESET` - What to do when there is no initial offset in Kafka or if the current offset does not exist any more on the server (e.g. because that data has been deleted):
-
-1. earliest: automatically reset the offset to the earliest offset
-2. latest: automatically reset the offset to the latest offset
-3. none: throw exception to the consumer if no previous offset is found for the consumer's group
-4. anything else: throw exception to the consumer,
-default = 'earliest'. If you change this <span style="color:red">first producer messages may be ignored by consumer</span>
-
-`KAFKA_TIMEOUT_MS` - Timeout in ms for most operations, default = 1000
-
-
-#### Testing
+## Testing
 
 Run the tests with:
 
-``` bash
+```bash
 vendor/bin/phpunit
 ```
 
-#### Acknowledgement 
+## Acknowledgements
 
-This library is based on [laravel-queue-kafka](https://github.com/rapideinternet/laravel-queue-kafka) by rapideinternet. 
+This package is a maintained fork of [rapideinternet/laravel-queue-kafka](https://github.com/rapideinternet/laravel-queue-kafka).
 
-#### Contribution
+## Contributing
 
-You can contribute to this package by discovering bugs and opening issues. Please, add to which version of package you create pull request or issue.
-
-#### Supported versions of Laravel 
-
-Tested on Laravel 12.x and 13.x.
+Bug reports and pull requests are welcome. Include the affected package version and enough information to reproduce the problem.
