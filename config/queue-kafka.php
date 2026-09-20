@@ -77,7 +77,12 @@ return [
      * The property enable.auto.commit is set to true by default, and Kafka commits the current offset back to the
      *     Kafka broker at a specified interval, controlled by the auto.commit.interval.ms setting (default is 5000 ms).
     */
-    'auto_commit' => env('KAFKA_AUTO_COMMIT', 'true'),
+    'auto_commit' => (bool) env('KAFKA_AUTO_COMMIT', true),
+
+    /*
+     * How often stored offsets are committed to Kafka. The low-level consumer accepts values from 10 ms.
+     */
+    'auto_commit_interval_ms' => env('KAFKA_AUTO_COMMIT_INTERVAL_MS', 5000),
 
     /**
      * What to do when there is no initial offset in Kafka or if the current offset does not exist any more on the server (e.g. because that data has been deleted):

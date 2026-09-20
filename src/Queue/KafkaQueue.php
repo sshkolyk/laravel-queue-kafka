@@ -308,7 +308,7 @@ class KafkaQueue extends Queue implements QueueContract
             $this->_consumer_conf = $this->container->makeWith('queue.kafka.conf', []);
             $this->_consumer_conf->set('auto.offset.reset', $this->getConfig()['auto_offset_reset']);
             $this->_consumer_conf->set('bootstrap.servers', $this->getConfig()['brokers']);
-            if ($this->getConfig()['sasl_enable'] === true) {
+            if ($this->getConfig()['sasl_enable']) {
                 $this->_consumer_conf->set('sasl.mechanism', $this->getConfig()['sasl_mechanism']);
                 $this->_consumer_conf->set('security.protocol', $this->getConfig()['sasl_security_protocol']);
                 $this->_consumer_conf->set('sasl.username', $this->getConfig()['sasl_plain_username']);
@@ -317,10 +317,11 @@ class KafkaQueue extends Queue implements QueueContract
             }
             $this->_consumer_conf->set('group.id', $this->getConfig()['consumer_group_id']);
             $this->_consumer_conf->set('metadata.broker.list', $this->getConfig()['brokers']);
-            $autoCommit = $this->getConfig()['auto_commit'];
+            $autoCommit = $this->getConfig()['auto_commit'] ? 'true' : 'false';
+            $this->_consumer_conf->set('enable.auto.commit', $autoCommit);
             $this->_consumer_conf->set(
-                'enable.auto.commit',
-                in_array($autoCommit, [true, 'true'], true) ? 'true' : 'false'
+                'topic.auto.commit.interval.ms',
+                (string) $this->getConfig()['auto_commit_interval_ms']
             );
         }
 
@@ -358,7 +359,7 @@ class KafkaQueue extends Queue implements QueueContract
             $producerConf->set('bootstrap.servers', $this->getConfig()['brokers']);
             $producerConf->set('metadata.broker.list', $this->getConfig()['brokers']);
             $producerConf->set('partitioner', $this->getConfig()['producer_partitioner']);
-            if ($this->getConfig()['sasl_enable'] === true) {
+            if ($this->getConfig()['sasl_enable']) {
                 $producerConf->set('sasl.mechanism', $this->getConfig()['sasl_mechanism']);
                 $producerConf->set('security.protocol', $this->getConfig()['sasl_security_protocol']);
                 $producerConf->set('sasl.username', $this->getConfig()['sasl_plain_username']);

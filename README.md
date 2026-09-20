@@ -138,8 +138,17 @@ With the default `murmur2_random` partitioner, jobs with the same non-empty key 
 | `KAFKA_SASL_PLAIN_USERNAME` | empty | SASL username. |
 | `KAFKA_SASL_PLAIN_PASSWORD` | empty | SASL password. |
 | `KAFKA_AUTO_COMMIT` | `true` | Enable librdkafka's periodic automatic offset commits. |
+| `KAFKA_AUTO_COMMIT_INTERVAL_MS` | `5000` | Interval between automatic offset commits; the low-level consumer accepts values from `10`. |
 | `KAFKA_AUTO_RESET` | `earliest` | Offset reset policy when no valid committed offset exists. |
 | `KAFKA_TIMEOUT_MS` | `1000` | Timeout in milliseconds for Kafka operations. |
+
+For near-immediate offset commits and more responsive `queue:monitor` output, use the minimum supported interval:
+
+```bash
+KAFKA_AUTO_COMMIT_INTERVAL_MS=10 php artisan queue:work
+```
+
+Commits remain asynchronous and interval-based; this does not make each job perform a synchronous Kafka commit.
 
 ### Producer partitioners
 
