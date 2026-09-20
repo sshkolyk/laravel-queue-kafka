@@ -1,0 +1,82 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.2'
+            laravel: '10.0'
+          - php: '8.2'
+            laravel: '11.0'
+          - php: '8.2'
+            laravel: '12.0'
+          - php: '8.3'
+            laravel: '13.0'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: rdkafka
+          coverage: none
+          tools: composer:v2
+        env:
+          fail-fast: true
+
+      - name: Select Laravel version
+        run: >-
+          composer require --no-update --no-interaction
+          illuminate/database:^${{ matrix.laravel }}
+          illuminate/queue:^${{ matrix.laravel }}
+          illuminate/support:^${{ matrix.laravel }}
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Run tests
+        run: ./vendor/bin/phpunit
+
+  code-style:
+    name: Code style
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: rdkafka
+          coverage: none
+          tools: composer:v2
+        env:
+          fail-fast: true
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Check code style
+        run: ./vendor/bin/pint --test
