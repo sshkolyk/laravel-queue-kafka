@@ -5,6 +5,8 @@
 
 A Laravel queue driver backed by Apache Kafka, with support for Laravel 10–13, php-rdkafka 6.x, and librdkafka 2.x.
 
+[View the repository on GitHub](https://github.com/sshkolyk/laravel-queue-kafka)
+
 ## Improvements over upstream
 
 - Supports PHP 8.2+ and Laravel 10–13.
