@@ -1,0 +1,10 @@
+title: Laravel Queue Kafka
+description: >-
+  A Kafka-backed implementation of Laravel's Queue contract for Laravel 10–13,
+  powered by php-rdkafka 6.x and librdkafka 2.x.
+url: https://sshkolyk.github.io
+baseurl: /laravel-queue-kafka
+repository: sshkolyk/laravel-queue-kafka
+theme: minima
+plugins:
+  - jekyll-seo-tag
