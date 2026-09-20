@@ -128,6 +128,53 @@ class KafkaQueueTest extends TestCase
 
     public function test_size_normal(): void
     {
+        $this->mockQueueOffsets(low: 11, high: 115, committed: 101);
+
+        $this->assertSame(14, $this->queue->size());
+    }
+
+    public function test_size_without_committed_offset_uses_available_watermark_range(): void
+    {
+        $this->mockQueueOffsets(low: 11, high: 115, committed: -1001);
+
+        $this->assertSame(104, $this->queue->size());
+    }
+
+    public function test_size_is_zero_for_empty_partition_without_committed_offset(): void
+    {
+        $this->mockQueueOffsets(low: 115, high: 115, committed: -1001);
+
+        $this->assertSame(0, $this->queue->size());
+    }
+
+    public function test_size_is_zero_when_committed_offset_reaches_high_watermark(): void
+    {
+        $this->mockQueueOffsets(low: 11, high: 115, committed: 115);
+
+        $this->assertSame(0, $this->queue->size());
+    }
+
+    public function test_size_is_zero_for_negative_special_offset(): void
+    {
+        $this->mockQueueOffsets(low: 11, high: 115, committed: RD_KAFKA_OFFSET_END);
+
+        $this->assertSame(0, $this->queue->size());
+    }
+
+    public function test_pending_size_returns_consumer_lag(): void
+    {
+        $this->mockQueueOffsets(low: 12, high: 115, committed: 101);
+
+        $this->assertSame(115 - 101, $this->queue->pendingSize());
+    }
+
+    public function test_delayed_size_is_zero(): void
+    {
+        $this->assertSame(0, $this->queue->delayedSize('orders'));
+    }
+
+    private function mockQueueOffsets(int $low, int $high, int $committed): void
+    {
         $kafkaConsumer = Mockery::mock(KafkaConsumerWrapper::class);
         $this->container->shouldReceive('makeWith')
             ->with('queue.kafka.kafka_consumer', Mockery::any())
@@ -137,14 +184,13 @@ class KafkaQueueTest extends TestCase
             ->andReturn(new \RdKafka\Conf);
         $kafkaConsumer
             ->shouldReceive('queryWatermarkOffsets')
-            ->andReturnUsing(function ($queue, $partition, &$low, &$high) {
-                $low = 11;
-                $high = 115;
+            ->andReturnUsing(function ($queue, $partition, &$actualLow, &$actualHigh) use ($low, $high) {
+                $actualLow = $low;
+                $actualHigh = $high;
             });
         $topicPartition = Mockery::mock(TopicPartitionWrapper::class);
-        $topicPartition->shouldReceive('getOffset')->andReturn(101);
+        $topicPartition->shouldReceive('getOffset')->andReturn($committed);
         $kafkaConsumer->shouldReceive('getCommittedOffsets')->andReturn([$topicPartition]);
-        $this->assertEquals(115 - 101, $this->queue->size());
     }
 
     public function test_push(): void

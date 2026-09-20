@@ -70,6 +70,26 @@ class KafkaQueue extends Queue implements QueueContract
     }
 
     /**
+     * Get the number of pending jobs.
+     *
+     * @param  null|string  $queue
+     */
+    public function pendingSize($queue = null): int
+    {
+        return $this->size($queue);
+    }
+
+    /**
+     * Get the number of delayed jobs.
+     *
+     * @param  null|string  $queue
+     */
+    public function delayedSize($queue = null): int
+    {
+        return 0;
+    }
+
+    /**
      * Push a new job onto the queue.
      *
      * @param  string  $job

@@ -23,6 +23,7 @@ A Laravel queue driver backed by Apache Kafka, with support for Laravel 10–13,
 
 - Delayed dispatch through `Queue::later()` is not supported.
 - Automatic job retries and `queue:work --tries` are not supported; failed jobs must be handled and requeued by the application.
+- Laravel's `queue:clear` command is not supported. Kafka records may be shared by multiple consumer groups, so clearing a Laravel queue cannot safely delete them. Advancing a consumer group's committed offset is also unsafe while workers are active: a worker may later commit an older offset or finish a job fetched before the reset. Stop the group's consumers and manage its offsets explicitly with Kafka tooling instead.
 
 ## Installation
 
