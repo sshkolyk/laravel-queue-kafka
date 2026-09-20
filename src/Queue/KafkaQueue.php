@@ -18,6 +18,8 @@ use RdKafka\TopicPartition;
 
 class KafkaQueue extends Queue implements QueueContract
 {
+    protected array $kafkaConfig;
+
     protected ?Producer $_producer = null;
 
     protected ?\RdKafka\Conf $_consumer_conf = null;
@@ -30,6 +32,26 @@ class KafkaQueue extends Queue implements QueueContract
     public function __construct(array $config)
     {
         $this->setConfig($config);
+    }
+
+    /**
+     * Get the queue configuration array.
+     */
+    public function getConfig()
+    {
+        return $this->kafkaConfig;
+    }
+
+    /**
+     * Set the queue configuration array.
+     *
+     * @return $this
+     */
+    public function setConfig(array $config)
+    {
+        $this->kafkaConfig = $config;
+
+        return $this;
     }
 
     /**
@@ -87,6 +109,26 @@ class KafkaQueue extends Queue implements QueueContract
     public function delayedSize($queue = null): int
     {
         return 0;
+    }
+
+    /**
+     * Get the number of reserved jobs.
+     *
+     * @param  null|string  $queue
+     */
+    public function reservedSize($queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the creation timestamp of the oldest pending job.
+     *
+     * @param  null|string  $queue
+     */
+    public function creationTimeOfOldestPendingJob($queue = null): ?int
+    {
+        return null;
     }
 
     /**

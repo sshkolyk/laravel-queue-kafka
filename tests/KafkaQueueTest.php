@@ -182,6 +182,16 @@ class KafkaQueueTest extends TestCase
         $this->assertSame(0, $this->queue->delayedSize('orders'));
     }
 
+    public function test_reserved_size_is_zero(): void
+    {
+        $this->assertSame(0, $this->queue->reservedSize('orders'));
+    }
+
+    public function test_oldest_pending_job_creation_time_is_unavailable(): void
+    {
+        $this->assertNull($this->queue->creationTimeOfOldestPendingJob('orders'));
+    }
+
     private function mockQueueOffsets(int $low, int $high, int $committed): void
     {
         $kafkaConsumer = Mockery::mock(KafkaConsumerWrapper::class);
