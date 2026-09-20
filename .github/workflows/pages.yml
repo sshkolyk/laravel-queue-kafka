@@ -6,7 +6,7 @@ on:
       - master
     paths:
       - README.md
-      - docs/_config.yml
+      - docs/**
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -37,7 +37,7 @@ jobs:
       - name: Prepare documentation
         run: |
           mkdir .pages-source
-          cp docs/_config.yml .pages-source/_config.yml
+          cp -R docs/. .pages-source/
           cp LICENSE .pages-source/LICENSE
           printf '%s\n' '---' 'layout: default' '---' > .pages-source/index.md
           sed 's#](LICENSE)#](https://github.com/sshkolyk/laravel-queue-kafka/blob/master/LICENSE)#' README.md >> .pages-source/index.md
