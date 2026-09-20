@@ -90,6 +90,25 @@ class KafkaQueueTest extends TestCase
         $this->assertEquals($consumer, $this->consumer);
     }
 
+    public function test_set_config_rebuilds_cached_kafka_clients_when_configuration_changes(): void
+    {
+        $consumerConfig = new ReflectionProperty($this->queue, '_consumer_conf');
+        $consumerConfig->setValue($this->queue, new \RdKafka\Conf);
+
+        $consumerTopics = new ReflectionProperty($this->queue, '_consumer_topics');
+        $consumerTopics->setValue($this->queue, ['orders' => $this->consumerTopicMock]);
+
+        $this->queue->setConfig(array_merge($this->config, ['consumer_partition' => 1]));
+
+        $producer = new ReflectionProperty($this->queue, '_producer');
+        $consumer = new ReflectionProperty($this->queue, '_consumer');
+
+        $this->assertNull($producer->getValue($this->queue));
+        $this->assertNull($consumerConfig->getValue($this->queue));
+        $this->assertNull($consumer->getValue($this->queue));
+        $this->assertSame([], $consumerTopics->getValue($this->queue));
+    }
+
     #[DataProvider('autoCommitValues')]
     public function test_auto_commit_is_applied(bool $autoCommit, string $expected): void
     {
@@ -257,6 +276,29 @@ class KafkaQueueTest extends TestCase
         $this->assertSame('order-42', $key);
     }
 
+    public function test_push_flushes_the_producer_that_accepted_the_message(): void
+    {
+        $topic = Mockery::mock(\RdKafka\ProducerTopic::class);
+        $replacementProducer = Mockery::mock(\RdKafka\Producer::class);
+
+        $this->producer->shouldReceive('newTopic')->once()->andReturn($topic);
+        $this->producer->shouldReceive('flush')
+            ->once()
+            ->with($this->config['timeout_ms'])
+            ->andReturn(RD_KAFKA_RESP_ERR_NO_ERROR);
+        $replacementProducer->shouldNotReceive('flush');
+        $this->container->shouldReceive('makeWith')
+            ->with('queue.kafka.producer', Mockery::any())
+            ->andReturn($replacementProducer);
+        $topic->shouldReceive('produce')
+            ->once()
+            ->andReturnUsing(function (): void {
+                $this->queue->setConfig(array_merge($this->config, ['brokers' => 'kafka:9092']));
+            });
+
+        $this->assertNotNull($this->queue->pushRaw('payload'));
+    }
+
     public function test_make_2nd_try_when_push_error(): void
     {
         $job = new TestJob;
@@ -389,6 +431,9 @@ class KafkaQueueTest extends TestCase
     public function test_pop_end_of_partition_stops_consumer_when_configured(): void
     {
         $this->queue->setConfig(array_merge($this->config, ['stop_consume_on_empty' => true]));
+        $consumer = new ReflectionProperty($this->queue, '_consumer');
+        $consumer->setValue($this->queue, $this->consumer);
+
         $job = $this->pop_job_with_message_error(
             messageError: RD_KAFKA_RESP_ERR__PARTITION_EOF,
             consumeStopTriggered: true,

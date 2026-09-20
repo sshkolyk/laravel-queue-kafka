@@ -13,7 +13,6 @@ use Rapide\LaravelQueueKafka\Queue\Jobs\KafkaJob;
 use RdKafka\Consumer;
 use RdKafka\ConsumerTopic;
 use RdKafka\Producer;
-use RdKafka\ProducerTopic;
 use RdKafka\TopicPartition;
 
 class KafkaQueue extends Queue implements QueueContract
@@ -49,6 +48,13 @@ class KafkaQueue extends Queue implements QueueContract
      */
     public function setConfig(array $config)
     {
+        if (isset($this->kafkaConfig) && $this->kafkaConfig !== $config) {
+            $this->_producer = null;
+            $this->_consumer_conf = null;
+            $this->_consumer = null;
+            $this->_consumer_topics = [];
+        }
+
         $this->kafkaConfig = $config;
 
         return $this;
@@ -174,12 +180,14 @@ class KafkaQueue extends Queue implements QueueContract
 
     protected function tryPushRaw($payload, $queue = null, array $options = []): ?string
     {
-        $topic = $this->getProducerTopic($queue);
+        $config = $this->getConfig();
+        $producer = $this->getProducer();
+        $topic = $producer->newTopic($this->getQueueName($queue));
         $key = isset($options['key']) && $options['key'] !== ''
             ? (string) $options['key']
             : Str::upper((string) Str::ulid());
         $topic->produce(RD_KAFKA_PARTITION_UA, 0, $payload, $key);
-        $result = $this->getProducer()->flush($this->getConfig()['timeout_ms']);
+        $result = $producer->flush($config['timeout_ms']);
         if ($result !== RD_KAFKA_RESP_ERR_NO_ERROR) {
             throw new QueueKafkaException('Kafka flush error #'.$result);
         }
@@ -283,14 +291,6 @@ class KafkaQueue extends Queue implements QueueContract
     protected function getQueueName(?string $queue = null): string
     {
         return $queue ?: $this->getConfig()['queue'];
-    }
-
-    /**
-     * Return a Kafka producer Topic based on the name
-     */
-    protected function getProducerTopic(?string $queue = null): ProducerTopic
-    {
-        return $this->getProducer()->newTopic($this->getQueueName($queue));
     }
 
     /**
